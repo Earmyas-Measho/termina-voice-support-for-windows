@@ -1,0 +1,11 @@
+patch_ctypes.py
+setup.py
+voice_clip.py
+plugins/__init__.py
+plugins/spellcheck_plugin.py
+voice_cmd.egg-info/PKG-INFO
+voice_cmd.egg-info/SOURCES.txt
+voice_cmd.egg-info/dependency_links.txt
+voice_cmd.egg-info/entry_points.txt
+voice_cmd.egg-info/requires.txt
+voice_cmd.egg-info/top_level.txt

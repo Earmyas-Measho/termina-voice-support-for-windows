@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: voice-cmd
+Version: 0.1.0
+Requires-Dist: openai-whisper
+Requires-Dist: numpy
+Requires-Dist: pyaudio
+Requires-Dist: requests
+Dynamic: requires-dist
