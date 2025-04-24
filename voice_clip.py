@@ -395,7 +395,7 @@ def detect_shell():
         # Operating system is not Windows
         return "unsupported"
 
-# Update get_system_prompt function
+# Update get_system_prompt function to include guidance on paths
 def get_system_prompt():
     shell = detect_shell()
 
@@ -412,7 +412,10 @@ def get_system_prompt():
             "    📝 `dir /a /s` - List all files recursively including hidden ones\n\n"
             "Always include the actual command in backticks (`) within your explanation. "
             "Ensure all commands are valid CMD syntax. Do not use redirection symbols (like > or |) unless specifically requested. "
-            "Keep the commands focused on displaying output in the terminal by default."
+            "Keep the commands focused on displaying output in the terminal by default.\n\n"
+            "IMPORTANT: Do not use placeholder paths like 'C:\\path\\to\\directory'. "
+            "Instead, use the current directory (.), user profile (%USERPROFILE%), "
+            "or system-defined paths (%WINDIR%, %PROGRAMFILES%)."
         )
     elif shell == "powershell":
         return (
@@ -427,12 +430,15 @@ def get_system_prompt():
             "   `Get-ChildItem -Recurse -Force -File | Select-Object FullName, Length, LastWriteTime` - Lists all files recursively (including hidden) with details\n\n"
             "Always include the actual command in backticks (`) within your explanation. "
             "Ensure all commands are valid PowerShell syntax. Use PowerShell cmdlets (e.g., Get-ChildItem, Select-Object) where appropriate. "
-            "Keep the commands focused on displaying output in the terminal by default."
+            "Keep the commands focused on displaying output in the terminal by default.\n\n"
+            "IMPORTANT: Do not use placeholder paths like 'C:\\path\\to\\search'. "
+            "Instead, use the current directory (.), user's home directory ($HOME), "
+            "or the current working directory parameter: $(Get-Location)."
         )
     else: # Handle unsupported case
         return "This operating system is not supported. This tool only works on Windows."
 
-# Modify process_with_mistral to filter results
+# Modify process_with_mistral to use get_system_prompt instead of hardcoded prompt
 def process_with_mistral(command, shell):
     """
     Sends command text to Mistral AI, gets suggestions, and filters dangerous ones.
@@ -443,22 +449,17 @@ def process_with_mistral(command, shell):
         "Authorization": f"Bearer {MISTRAL_API_KEY}"
     }
     
-    # Build prompt to get better structured output
-    system_prompt = (
-        "You are a helpful assistant that generates shell commands for PowerShell or CMD. "
-        "The user will describe what they want to do, and you will provide the exact commands they should run. "
-        "Provide 1-3 command options with explanations. "
-        "Format your response as a JSON array of objects with 'command' and 'explanation' fields. "
-        "Example format: ```json [{\"command\": \"dir\", \"explanation\": \"Lists files in current directory\"}] ```"
-    )
+    # Get the system prompt based on the shell
+    system_prompt = get_system_prompt()
     
+    # Update the payload to ensure consistency with system prompt format
     payload = {
         "model": "mistral-large-latest",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Generate {shell.upper()} commands for: '{command}'"}
         ],
-        "temperature": 0.3,  # Lower temperature for more focused output
+        "temperature": 0.3,
         "max_tokens": 800
     }
     
@@ -473,59 +474,61 @@ def process_with_mistral(command, shell):
         if 'choices' not in response_json or not response_json['choices']:
             print("Error: Unexpected response structure from Mistral.")
             return None
+            
         content = response_json['choices'][0]['message']['content']
+        
+        # New parsing logic to extract commands from the formatted text response
+        # This will look for commands enclosed in backticks
+        commands = []
+        command_pattern = r'`([^`]+)`\s*-\s*(.+?)(?=\n\n|\n\d+\.|\Z)'
+        matches = re.findall(command_pattern, content, re.DOTALL)
+        
+        for i, (cmd_text, explanation) in enumerate(matches, 1):
+            commands.append({
+                'command': cmd_text.strip(),
+                'explanation': explanation.strip()
+            })
+        
+        if not commands:
+            print("Could not extract command suggestions from Mistral response.")
+            return None
+            
+        # --- FILTER DANGEROUS COMMANDS ---
+        safe_commands = []
+        filtered_count = 0
+        filtered_examples = []
 
-        try:
-            json_match = re.search(r'```(?:json)?\s*([\s\S]+?)\s*```', content)
-            if json_match:
-                json_str = json_match.group(1).strip()
-                commands = json.loads(json_str)
+        for cmd_option in commands:
+            cmd_text = cmd_option.get('command')
+            if cmd_text and not is_command_dangerous(cmd_text):
+                safe_commands.append(cmd_option)
             else:
-                commands = json.loads(content) # Fallback
+                filtered_count += 1
+                # Store a sanitized version of the filtered command for user awareness
+                if len(filtered_examples) < 2 and cmd_text:
+                    # Anonymize the command slightly for security
+                    cmd_preview = cmd_text[:10] + "..." if len(cmd_text) > 10 else cmd_text
+                    filtered_examples.append(cmd_preview)
 
-            if not (isinstance(commands, list) and all(isinstance(cmd, dict) for cmd in commands)):
-                 print(f"Extracted data is not a list of dictionaries: {type(commands)}")
-                 return None
+        if filtered_count > 0:
+            print(f"\n🛡️ Security: Filtered {filtered_count} potentially dangerous command(s).")
+            if filtered_examples:
+                print(f"   Example(s): {', '.join(filtered_examples)}")
 
-            # --- FILTER DANGEROUS COMMANDS ---
-            safe_commands = []
-            filtered_count = 0
-            filtered_examples = []  # Keep track of what was filtered for feedback
-
-            for cmd_option in commands:
-                cmd_text = cmd_option.get('command')
-                if cmd_text and not is_command_dangerous(cmd_text):
-                    safe_commands.append(cmd_option)
-                else:
-                    filtered_count += 1
-                    # Store a sanitized version of the filtered command for user awareness
-                    # Only store the first two as examples
-                    if len(filtered_examples) < 2 and cmd_text:
-                        # Anonymize the command slightly for security
-                        cmd_preview = cmd_text[:10] + "..." if len(cmd_text) > 10 else cmd_text
-                        filtered_examples.append(cmd_preview)
-
-            if filtered_count > 0:
-                print(f"\n🛡️ Security: Filtered {filtered_count} potentially dangerous command(s).")
-                if filtered_examples:
-                    print(f"   Example(s): {', '.join(filtered_examples)}")
-
-            if not safe_commands:
-                print("No safe command suggestions were returned after filtering.")
-                return None
-
-            return safe_commands # Return only the safe commands
-            # --- END FILTER ---
-
-        except json.JSONDecodeError as e:
-            print(f"JSON parsing error: {e}")
+        if not safe_commands:
+            print("No safe command suggestions were returned after filtering.")
             return None
 
+        return safe_commands
+
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing error: {e}")
+        # Add debug information to help troubleshoot response issues
+        print("Response might not be in expected format. Check API response format.")
+        return None
     except Exception as e:
         print(f"Error during Mistral API request: {e}")
         return None
-    finally:
-        pass # Keep timing removed
 
 # Modify execute_command confirmation for clarity
 def execute_command(command):
@@ -538,26 +541,83 @@ def execute_command(command):
     # Display command clearly, maybe wrap long ones
     if len(command) > 80:
          print(f"  {command[:77]}...")
-         # Consider showing the full command if needed, or just the start
+         print(f"  Full command: {command}")  # Always show full command
     else:
          print(f"  {command}")
 
+    # Check for potentially slow commands and warn user
+    slow_patterns = ['-Recurse', '-Force', '-Depth', '/s']
+    is_potentially_slow = any(pattern in command for pattern in slow_patterns)
+    
+    if is_potentially_slow:
+        print("\n⚠️ NOTE: This command might take a long time to run if there are many files.")
+        print("      Press Ctrl+C at any time to cancel execution.")
+
     # Emphasize checking the command
     print("\n⚠️ IMPORTANT: Review the command carefully before executing! ⚠️")
-    confirmation = input("Execute this command? (Y)es / (N)o / (E)dit: ").strip().lower()
+    confirmation = input("Execute this command? (Y)es / (N)o / (E)dit / (L)imit results: ").strip().lower()
 
-    if confirmation == 'y':
+    if confirmation == 'l':
+        if shell == "powershell":
+            # Add a limit for PowerShell commands
+            if 'Get-ChildItem' in command and '-Recurse' in command:
+                modified_command = command + " | Select-Object -First 50"
+                print(f"\n Modified command with limit: {modified_command}")
+                execute_modified = input("Execute this modified command? (Y/N): ").strip().lower()
+                if execute_modified != 'y':
+                    print("\n Command cancelled")
+                    return
+                command = modified_command
+            else:
+                print("Limit option is currently only available for recursive Get-ChildItem commands.")
+                return
+        else:
+            print("Limit option is currently only available for PowerShell commands.")
+            return
+        
+    if confirmation == 'y' or confirmation == 'l':
         print("\n Executing command...\n")
         try:
+            print(" Command is running, please wait...")
+            start_time = time.time()
+            
+            # Use a timeout for potentially slow commands
+            timeout = 60 if is_potentially_slow else None  # 60 seconds timeout for slow commands
+            
+            # Capture the output of the command
             if shell == "powershell":
-                # Use shell=True for robustness, especially with complex commands or paths
-                subprocess.run(["powershell", "-Command", command], check=True, shell=True)
+                result = subprocess.run(["powershell", "-Command", command], 
+                                       check=True, shell=True, 
+                                       capture_output=True, text=True,
+                                       timeout=timeout)
+                output = result.stdout
             elif shell == "cmd":
-                # Use shell=True for CMD execution
-                subprocess.run(command, check=True, shell=True)
-            print("\n Command execution complete")
+                result = subprocess.run(command, check=True, shell=True,
+                                       capture_output=True, text=True,
+                                       timeout=timeout)
+                output = result.stdout
+            
+            elapsed_time = time.time() - start_time
+                
+            # Display the output or a message if empty
+            if output.strip():
+                print(output)
+                # For large outputs, show how many lines were returned
+                line_count = output.count('\n')
+                if line_count > 10:
+                    print(f"\n Total: {line_count} lines of output")
+            else:
+                print("\n ℹ️ The command executed successfully but returned no results.")
+                
+            print(f"\n Command execution complete (took {elapsed_time:.2f} seconds)")
+        except subprocess.TimeoutExpired:
+            print("\n⚠️ Command timed out after 60 seconds. Consider refining your command or using option (L) to limit results.")
         except subprocess.CalledProcessError as e:
             print(f"\nError during command execution: {e}")
+            if e.stderr:
+                print(f"Error details: {e.stderr}")
+        except KeyboardInterrupt:
+            print("\n\n⚠️ Command execution cancelled by user.")
         except Exception as e:
             print(f"\nAn unexpected error occurred: {e}")
     elif confirmation == 'e':
@@ -565,13 +625,31 @@ def execute_command(command):
         if edited:
             print("\n Executing modified command...\n")
             try:
+                # Reuse the same logic but with the edited command
+                start_time = time.time()
                 if shell == "powershell":
-                    subprocess.run(["powershell", "-Command", edited], check=True, shell=True)
+                    result = subprocess.run(["powershell", "-Command", edited], 
+                                          check=True, shell=True,
+                                          capture_output=True, text=True)
+                    output = result.stdout
                 elif shell == "cmd":
-                    subprocess.run(edited, check=True, shell=True)
-                print("\n Command execution complete")
+                    result = subprocess.run(edited, check=True, shell=True,
+                                          capture_output=True, text=True)
+                    output = result.stdout
+                
+                elapsed_time = time.time() - start_time
+                
+                # Display the output or a message if empty
+                if output.strip():
+                    print(output)
+                else:
+                    print("\n ℹ️ The command executed successfully but returned no results.")
+                    
+                print(f"\n Command execution complete (took {elapsed_time:.2f} seconds)")
             except subprocess.CalledProcessError as e:
                 print(f"\nError during command execution: {e}")
+                if e.stderr:
+                    print(f"Error details: {e.stderr}")
             except Exception as e:
                 print(f"\nAn unexpected error occurred: {e}")
     else:
