@@ -16,20 +16,15 @@ import requests
 import re
 import importlib.util
 import platform
-
-# Get the absolute path to the directory containing THIS script file
-# This works correctly even when run via the voice.bat wrapper
+import pickle
+from collections import deque
+import configparser
+import csv
+from datetime import datetime
+ 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Use a fixed API key instead of environment variables
-MISTRAL_API_KEY = "QnypDzjhUzYGMUKVTyqJrpngORGi15TG"
-MISTRAL_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
 
-# Add this near the top of your file, after imports
-os.environ["PATH"] = os.environ["PATH"] + os.pathsep + r"C:\Users\Earmy\ffmpeg\ffmpeg-master-latest-win64-gpl\bin"
-
-# Define a blacklist of dangerous command patterns (using regex)
-# This list can be expanded. Covers common deletion, formatting, execution risks.
 DANGEROUS_PATTERNS = [
     r'\brm\b',          # Unix/Linux remove
     r'\bdel\b',         # Windows delete
@@ -65,8 +60,6 @@ def is_command_dangerous(command):
     """Checks if a command matches any pattern in the blacklist."""
     for pattern in DANGEROUS_REGEX:
         if pattern.search(command):
-            # Optional: Print which pattern matched for debugging
-            # print(f"Potential danger detected: Command '{command}' matched pattern '{pattern.pattern}'")
             return True
     return False
 
@@ -111,9 +104,6 @@ def select_microphone():
 
     try:
         index = int(choice)
-        # Basic validation: check if index is within the range of devices
-        # Note: This doesn't guarantee it's a valid *input* device,
-        # but it's a basic sanity check.
         if 0 <= index < numdevices:
              # Further check if it's an input device (optional but good)
              device_info = mic.get_device_info_by_index(index)
@@ -134,24 +124,68 @@ def select_microphone():
         if mic:
             mic.terminate()
 
-# Replace with just this global variable declaration:
-model = None  # Will be initialized in __main__
+model = None
 
-def get_voice_command(input_device_index=None):
+# Store command history
+HISTORY_FILE = os.path.join(SCRIPT_DIR, "command_history.pkl")
+MAX_HISTORY = 20
+command_history = deque(maxlen=MAX_HISTORY)
+
+def load_command_history():
+    """Load command history from file."""
+    global command_history
+    try:
+        if os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE, 'rb') as f:
+                command_history = pickle.load(f)
+            print(f"Loaded {len(command_history)} commands from history.")
+    except Exception as e:
+        print(f"Could not load command history: {e}")
+        command_history = deque(maxlen=MAX_HISTORY)
+
+def save_command_history():
+    """Save command history to file."""
+    try:
+        with open(HISTORY_FILE, 'wb') as f:
+            pickle.dump(command_history, f)
+    except Exception as e:
+        print(f"Could not save command history: {e}")
+
+# Add a global variable
+whisper_model = None
+
+# Replace the model loading in main() with this pattern
+def load_whisper_model(config):
+    """Lazy load the Whisper model only when needed."""
+    global whisper_model
+    
+    if whisper_model is None:
+        model_size = config.get('Whisper', 'model_size', fallback='small')
+        print(f"Loading Whisper '{model_size}' model (more accurate, may take longer)...")
+        try:
+            whisper_model = whisper.load_model(model_size)
+            print("Model loaded successfully!")
+        except Exception as e:
+            print(f"Error loading Whisper model: {e}")
+            return None
+    
+    return whisper_model
+
+# Modify get_voice_command() to use lazy loading
+def get_voice_command(input_device_index=None, config=None):
     """Records audio and transcribes it using Whisper."""
-    global model
-    if model is None:
-        print("Error: Whisper model not loaded.")
-        return None
-
+    if config is None:
+        config = load_config()
+    
+    # Use config values instead of hardcoded constants
     FORMAT = pyaudio.paInt16
     CHANNELS = 1
-    RATE = 16000
-    CHUNK = 4096
-    RECORD_SECONDS = 12  # Increased to 12 seconds for more time
-    SILENCE_THRESHOLD = 100  # Reduced threshold - more sensitive to quieter sounds
-    SILENCE_DURATION = 3.0   # Longer silence duration before stopping
-
+    RATE = config.getint('Recording', 'rate', fallback=16000)
+    CHUNK = config.getint('Recording', 'chunk_size', fallback=4096)
+    RECORD_SECONDS = config.getint('Recording', 'max_record_seconds', fallback=12)
+    SILENCE_THRESHOLD = config.getint('Recording', 'silence_threshold', fallback=100)
+    SILENCE_DURATION = config.getfloat('Recording', 'silence_duration', fallback=3.0)
+    
     # Verify microphone before proceeding - IMPROVED VERSION
     audio = pyaudio.PyAudio()
     try:
@@ -351,7 +385,7 @@ def get_voice_command(input_device_index=None):
     start_transcribe = time.time()
     try:
         # Use the loaded model, specify language as English
-        result = model.transcribe(tmp_audio_path, language="en", fp16=False) # fp16=False for CPU
+        result = whisper_model.transcribe(tmp_audio_path, language="en", fp16=False) # fp16=False for CPU
         transcribed_text = result["text"].strip()
         print(f"You said: {transcribed_text}")
     except Exception as e:
@@ -372,7 +406,15 @@ def get_voice_command(input_device_index=None):
          print("Could not understand audio or transcription was empty.")
          return None # Return None if transcription failed or is empty
 
-    return transcribed_text
+    # Initialize metrics for voice input
+    metrics = {
+        'input_mode': 'voice',
+        'command_type': 'single',
+        'transcription_accuracy': 0,  # We don't know actual accuracy
+        'command_length': len(transcribed_text)
+    }
+
+    return transcribed_text, metrics  # Return metrics with the command
 
 # Update detect_shell function
 def detect_shell():
@@ -439,103 +481,118 @@ def get_system_prompt():
         return "This operating system is not supported. This tool only works on Windows."
 
 # Modify process_with_mistral to use get_system_prompt instead of hardcoded prompt
-def process_with_mistral(command, shell):
-    """
-    Sends command text to Mistral AI, gets suggestions, and filters dangerous ones.
-    """
+def process_with_mistral(command, shell, force_chain=False, debug=False):
+    """Process command with Mistral AI, supporting command chaining."""
+    # Always load fresh config
+    config = load_config()
+    
+    # Get API key from config (try both sections for compatibility)
+    api_key = config.get('API', 'mistral_api_key', fallback='')
+    endpoint = config.get('API', 'mistral_endpoint', fallback='https://api.mistral.ai/v1/chat/completions')
+    model = config.get('API', 'mistral_model', fallback='mistral-tiny')
+    
+    # If key not found, check environment variable
+    if not api_key:
+        api_key = os.environ.get('MISTRAL_API_KEY', '')
+    
+    # If still empty, prompt user
+    if not api_key:
+        print("\n⚠️ Mistral API key not found in config or environment variables.")
+        api_key = input(" Please enter your Mistral API key (or press Enter to cancel): ").strip()
+        if not api_key:
+            print(" Operation cancelled.")
+            return None
+        
+        # Save to config for future use
+        config['API']['mistral_api_key'] = api_key
+        with open(os.path.join(SCRIPT_DIR, "config.ini"), 'w') as f:
+            config.write(f)
+    
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "Authorization": f"Bearer {MISTRAL_API_KEY}"
+        "Authorization": f"Bearer {api_key}"
     }
     
-    # Get the system prompt based on the shell
-    system_prompt = get_system_prompt()
+    # Use other config values
+    model_name = config.get('Mistral', 'model', fallback='mistral-large-latest')
+    temperature = config.getfloat('Mistral', 'temperature', fallback=0.3)
+    max_tokens = config.getint('Mistral', 'max_tokens', fallback=800)
     
-    # Update the payload to ensure consistency with system prompt format
+    # Check if the command might need a chain of commands or if force_chain is True
+    chain_keywords = ['and then', 'after that', 'followed by', 'next', 'create and move', 
+                     'create and then', 'first', 'download and extract', 'combine', 'sequence']
+    needs_chain = force_chain or any(keyword in command.lower() for keyword in chain_keywords)
+    
+    # Create a specialized prompt for command chains
+    if needs_chain:
+        system_prompt = (
+            "You are a command-line assistant that converts complex tasks into a sequence of "
+            f"individual {shell.upper()} commands. For multi-step operations, provide each command "
+            "with a clear COMMAND: prefix.\n\n"
+            "Format your response like this:\n"
+            "Step 1:\nCOMMAND: [first command]\n[explanation of what this step does]\n\n"
+            "Step 2:\nCOMMAND: [second command]\n[explanation of what this step does]\n\n"
+            f"Use only valid {shell.upper()} syntax. Do not use placeholder paths - use the current "
+            "directory (.) or absolute paths when necessary."
+        )
+        
+        user_content = f"Convert this complex task into a sequence of {shell.upper()} commands: {command}"
+    else:
+        # Use the standard system prompt for single commands
+        system_prompt = get_system_prompt()
+        user_content = f"Generate {shell.upper()} commands for: '{command}'"
+    
     payload = {
-        "model": "mistral-large-latest",
+        "model": model_name,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Generate {shell.upper()} commands for: '{command}'"}
+            {"role": "user", "content": user_content}
         ],
-        "temperature": 0.3,
-        "max_tokens": 800
+        "temperature": temperature,
+        "max_tokens": max_tokens
     }
     
-    print(f" Consulting Mistral AI for {shell.upper()} command suggestions...")
+    print(f"\n Consulting Mistral AI for command suggestions...")
     
     start_time = time.time()
     try:
-        response = requests.post(MISTRAL_ENDPOINT, headers=headers, json=payload)
+        response = requests.post(endpoint, headers=headers, json=payload)
         response.raise_for_status()
         response_json = response.json()
-
-        if 'choices' not in response_json or not response_json['choices']:
-            print("Error: Unexpected response structure from Mistral.")
-            return None
-            
-        content = response_json['choices'][0]['message']['content']
         
-        # New parsing logic to extract commands from the formatted text response
-        # This will look for commands enclosed in backticks
-        commands = []
-        command_pattern = r'`([^`]+)`\s*-\s*(.+?)(?=\n\n|\n\d+\.|\Z)'
-        matches = re.findall(command_pattern, content, re.DOTALL)
+        end_time = time.time()
+        processing_time = end_time - start_time
+        print(f" Received suggestions in {processing_time:.2f} seconds")
         
-        for i, (cmd_text, explanation) in enumerate(matches, 1):
-            commands.append({
-                'command': cmd_text.strip(),
-                'explanation': explanation.strip()
-            })
+        # Debug mode - show the raw response
+        if debug:
+            print("\n DEBUG - Raw Mistral Response:")
+            content = response_json["choices"][0]["message"]["content"]
+            print(content)
+            print("\n --- End of raw response ---\n")
         
-        if not commands:
-            print("Could not extract command suggestions from Mistral response.")
-            return None
-            
-        # --- FILTER DANGEROUS COMMANDS ---
-        safe_commands = []
-        filtered_count = 0
-        filtered_examples = []
-
-        for cmd_option in commands:
-            cmd_text = cmd_option.get('command')
-            if cmd_text and not is_command_dangerous(cmd_text):
-                safe_commands.append(cmd_option)
-            else:
-                filtered_count += 1
-                # Store a sanitized version of the filtered command for user awareness
-                if len(filtered_examples) < 2 and cmd_text:
-                    # Anonymize the command slightly for security
-                    cmd_preview = cmd_text[:10] + "..." if len(cmd_text) > 10 else cmd_text
-                    filtered_examples.append(cmd_preview)
-
-        if filtered_count > 0:
-            print(f"\n🛡️ Security: Filtered {filtered_count} potentially dangerous command(s).")
-            if filtered_examples:
-                print(f"   Example(s): {', '.join(filtered_examples)}")
-
-        if not safe_commands:
-            print("No safe command suggestions were returned after filtering.")
-            return None
-
-        return safe_commands
-
-    except json.JSONDecodeError as e:
-        print(f"JSON parsing error: {e}")
-        # Add debug information to help troubleshoot response issues
-        print("Response might not be in expected format. Check API response format.")
-        return None
+        # Pass whether this is a chain request to the parser
+        return parse_mistral_response(response_json, command, needs_chain)
     except Exception as e:
-        print(f"Error during Mistral API request: {e}")
+        print(f" Error during Mistral API request: {e}")
         return None
 
 # Modify execute_command confirmation for clarity
-def execute_command(command):
+def execute_command(command, input_mode="text"):
+    """Execute a command in the appropriate shell."""
     shell = detect_shell()
     if shell == "unsupported":
         print("\nError: Cannot execute command. This tool only supports Windows (CMD/PowerShell).")
         return
+
+    # Initialize metrics dictionary
+    metrics = {
+        'input_mode': input_mode,
+        'command_type': 'single',  
+        'command_length': len(command),
+        'required_correction': False
+    }
 
     print(f"\n Command Ready to Execute ({shell.upper()}):")
     # Display command clearly, maybe wrap long ones
@@ -555,7 +612,7 @@ def execute_command(command):
 
     # Emphasize checking the command
     print("\n⚠️ IMPORTANT: Review the command carefully before executing! ⚠️")
-    confirmation = input("Execute this command? (Y)es / (N)o / (E)dit / (L)imit results: ").strip().lower()
+    confirmation = input("Execute this command? (Y)es / (N)o / (E)dit / (L)imit results / e(X)plain: ").strip().lower()
 
     if confirmation == 'l':
         if shell == "powershell":
@@ -576,40 +633,69 @@ def execute_command(command):
             return
         
     if confirmation == 'y' or confirmation == 'l':
-        print("\n Executing command...\n")
+        # Command is executed as is
+        metrics['required_correction'] = False
+        
+        # Add to history if it's actually executed
+        command_history.appendleft(command)
+        save_command_history()
+        
+        print("\n Executing command...")
+        
+        start_time = time.time()
+        success = False
+        
         try:
-            print(" Command is running, please wait...")
-            start_time = time.time()
-            
-            # Use a timeout for potentially slow commands
-            timeout = 60 if is_potentially_slow else None  # 60 seconds timeout for slow commands
-            
-            # Capture the output of the command
+            # Use the appropriate execution method based on shell
             if shell == "powershell":
-                result = subprocess.run(["powershell", "-Command", command], 
-                                       check=True, shell=True, 
-                                       capture_output=True, text=True,
-                                       timeout=timeout)
-                output = result.stdout
-            elif shell == "cmd":
-                result = subprocess.run(command, check=True, shell=True,
-                                       capture_output=True, text=True,
-                                       timeout=timeout)
-                output = result.stdout
+                process = subprocess.Popen(["powershell", "-Command", command], 
+                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                                          text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            else:  # cmd
+                process = subprocess.Popen(["cmd", "/c", command], 
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                                         text=True, creationflags=subprocess.CREATE_NO_WINDOW)
             
-            elapsed_time = time.time() - start_time
+            # Add this section for handling Ctrl+C
+            try:
+                stdout, stderr = process.communicate(timeout=600)  # 10-minute timeout
+            except KeyboardInterrupt:
+                # Handle Ctrl+C properly
+                print("\n\n⚠️ Command execution interrupted by user")
+                process.terminate()
                 
-            # Display the output or a message if empty
-            if output.strip():
-                print(output)
+                # Wait a bit for process to terminate
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()  # Force kill if it doesn't terminate
+                
+                # Update metrics to show cancellation
+                metrics['was_successful'] = False
+                metrics['execution_time'] = time.time() - start_time
+                log_metrics(metrics)
+                return
+            
+            end_time = time.time()
+            exec_time = end_time - start_time
+            success = process.returncode == 0
+            
+            # Save metrics
+            metrics['execution_time'] = exec_time
+            metrics['was_successful'] = success
+            log_metrics(metrics)
+            
+            # Rest of your existing code...
+            if stdout:
+                print(stdout)
                 # For large outputs, show how many lines were returned
-                line_count = output.count('\n')
+                line_count = stdout.count('\n')
                 if line_count > 10:
                     print(f"\n Total: {line_count} lines of output")
             else:
                 print("\n ℹ️ The command executed successfully but returned no results.")
                 
-            print(f"\n Command execution complete (took {elapsed_time:.2f} seconds)")
+            print(f"\n Command execution complete (took {exec_time:.2f} seconds)")
         except subprocess.TimeoutExpired:
             print("\n⚠️ Command timed out after 60 seconds. Consider refining your command or using option (L) to limit results.")
         except subprocess.CalledProcessError as e:
@@ -652,6 +738,10 @@ def execute_command(command):
                     print(f"Error details: {e.stderr}")
             except Exception as e:
                 print(f"\nAn unexpected error occurred: {e}")
+    elif confirmation == 'x':
+        explain_command(command)
+        # Ask again after showing explanation
+        execute_command(command)
     else:
         print("\n Command cancelled")
 
@@ -795,14 +885,245 @@ def diagnose_microphones():
     p.terminate()
     print("\n===== END DIAGNOSTIC =====")
 
+# Add this new function to show history
+def show_command_history():
+    """Display command history and allow reuse."""
+    if not command_history:
+        print("\n No command history available.")
+        return
+        
+    print("\n Command History:")
+    for i, cmd in enumerate(command_history):
+        # Truncate long commands for display
+        display_cmd = cmd if len(cmd) < 60 else cmd[:57] + "..."
+        print(f" {i+1}. {display_cmd}")
+        
+    try:
+        choice = input("\n Select a command to reuse (number) or (C)ancel: ").strip().lower()
+        if choice == 'c':
+            return None
+            
+        idx = int(choice) - 1
+        if 0 <= idx < len(command_history):
+            return command_history[idx]
+        else:
+            print(" Invalid selection.")
+            return None
+    except ValueError:
+        print(" Invalid input.")
+        return None
+
+# Add this function
+def load_config():
+    """Load application configuration."""
+    config_path = os.path.join(SCRIPT_DIR, "config.ini")
+    config = configparser.ConfigParser()
+    
+    # Create default config if not exists
+    if not os.path.exists(config_path):
+        print(f"Creating new configuration file at {config_path}")
+        
+        # Check if example config exists to use as template
+        example_config_path = os.path.join(SCRIPT_DIR, "config.ini.example")
+        if os.path.exists(example_config_path):
+            config.read(example_config_path)
+            
+            # Don't copy API key from example
+            if 'API' in config and 'mistral_api_key' in config['API']:
+                config['API']['mistral_api_key'] = ''
+                
+            # Save as new config
+            with open(config_path, 'w') as f:
+                config.write(f)
+                
+            print(f"Created configuration from template file.")
+        else:
+            # Set default values
+            config['API'] = {
+                'mistral_api_key': '',
+                'mistral_endpoint': 'https://api.mistral.ai/v1/chat/completions',
+                'mistral_model': 'mistral-tiny'
+            }
+            config['Whisper'] = {
+                'model_size': 'small',
+                'device': 'cpu'
+            }
+            config['Paths'] = {
+                'ffmpeg_path': '',
+                'plugins_dir': os.path.join(SCRIPT_DIR, 'plugins')
+            }
+            config['Recording'] = {
+                'max_seconds': '12',
+                'silence_threshold': '100',
+                'silence_duration': '3.0',
+                'rate': '16000',
+                'chunk_size': '4096'
+            }
+            config['History'] = {
+                'max_commands': '20'
+            }
+            
+            with open(config_path, 'w') as f:
+                config.write(f)
+                
+            print(f"Created default configuration.")
+    
+    # Now load the existing config
+    config.read(config_path)
+    
+    # Check for environment variables
+    mistral_key_env = os.environ.get('MISTRAL_API_KEY')
+    if mistral_key_env and not config.get('API', 'mistral_api_key', fallback=''):
+        config['API']['mistral_api_key'] = mistral_key_env
+        print("Using Mistral API key from environment variable")
+    
+    return config
+
+# Add this function
+def manage_tasks():
+    """Manage saved tasks (sequences of commands)."""
+    tasks_file = os.path.join(SCRIPT_DIR, "tasks.json")
+    tasks = {}
+    
+    # Load existing tasks
+    if os.path.exists(tasks_file):
+        try:
+            with open(tasks_file, 'r') as f:
+                tasks = json.load(f)
+        except:
+            print(" Error loading tasks file.")
+    
+    while True:
+        print("\n Task Management:")
+        print(" 1. List all tasks")
+        print(" 2. Create new task")
+        print(" 3. Run a task")
+        print(" 4. Delete a task")
+        print(" 5. Return to main menu")
+        
+        choice = input("\n Choose an option (1-5): ").strip()
+        
+        if choice == "1":
+            if not tasks:
+                print(" No saved tasks.")
+                continue
+                
+            print("\n Saved Tasks:")
+            for name in tasks:
+                cmd_count = len(tasks[name])
+                print(f" - {name} ({cmd_count} commands)")
+                
+        elif choice == "2":
+            name = input(" Enter a name for the new task: ").strip()
+            if not name:
+                print(" Task name cannot be empty.")
+                continue
+                
+            if name in tasks:
+                overwrite = input(f" Task '{name}' already exists. Overwrite? (y/n): ").lower()
+                if overwrite != 'y':
+                    continue
+            
+            commands = []
+            print(" Enter commands one by one (enter blank line to finish):")
+            while True:
+                cmd = input(" > ").strip()
+                if not cmd:
+                    break
+                commands.append(cmd)
+            
+            if commands:
+                tasks[name] = commands
+                with open(tasks_file, 'w') as f:
+                    json.dump(tasks, f, indent=2)
+                print(f" Task '{name}' saved with {len(commands)} commands.")
+            else:
+                print(" No commands added. Task creation cancelled.")
+                
+        elif choice == "3":
+            if not tasks:
+                print(" No saved tasks.")
+                continue
+                
+            print("\n Available Tasks:")
+            task_names = list(tasks.keys())
+            for i, name in enumerate(task_names, 1):
+                print(f" {i}. {name}")
+                
+            try:
+                idx = int(input("\n Select task to run (number): ")) - 1
+                if 0 <= idx < len(task_names):
+                    task_name = task_names[idx]
+                    commands = tasks[task_name]
+                    
+                    print(f"\n Running task '{task_name}' ({len(commands)} commands):")
+                    for i, cmd in enumerate(commands, 1):
+                        print(f"\n Command {i}/{len(commands)}: {cmd}")
+                        confirm = input(" Run this command? (Y/N/Skip rest): ").lower()
+                        
+                        if confirm == 'y':
+                            execute_command(cmd)
+                        elif confirm == 'skip rest':
+                            break
+                else:
+                    print(" Invalid selection.")
+            except ValueError:
+                print(" Invalid input.")
+                
+        elif choice == "4":
+            if not tasks:
+                print(" No saved tasks.")
+                continue
+                
+            print("\n Available Tasks:")
+            task_names = list(tasks.keys())
+            for i, name in enumerate(task_names, 1):
+                print(f" {i}. {name}")
+                
+            try:
+                idx = int(input("\n Select task to delete (number): ")) - 1
+                if 0 <= idx < len(task_names):
+                    task_name = task_names[idx]
+                    confirm = input(f" Are you sure you want to delete '{task_name}'? (y/n): ").lower()
+                    
+                    if confirm == 'y':
+                        del tasks[task_name]
+                        with open(tasks_file, 'w') as f:
+                            json.dump(tasks, f, indent=2)
+                        print(f" Task '{task_name}' deleted.")
+                else:
+                    print(" Invalid selection.")
+            except ValueError:
+                print(" Invalid input.")
+                
+        elif choice == "5":
+            break
+
 # Modify main function to check OS at the start
 def main():
+    config = load_config()
+    
+    # Initialize metrics file
+    metrics_file = initialize_metrics()
+    print(f"Metrics will be saved to: {metrics_file}")
+    
+    # Now we'll use the config throughout instead of global variables
+    
+    # Set ffmpeg path if specified
+    ffmpeg_path = config.get('Paths', 'ffmpeg_path', fallback='')
+    if ffmpeg_path and os.path.exists(ffmpeg_path):
+        os.environ["PATH"] = os.environ["PATH"] + os.pathsep + ffmpeg_path
+        
+    # Update whisper model loading to use config
+    whisper_model_size = config.get('Whisper', 'model_size', fallback='small')
+    # ...rest of main()
+
     # Load the Whisper model at the start of main
     global model
     if model is None:
         try:
-            print("Loading Whisper 'small' model (more accurate, may take longer)...")
-            model = whisper.load_model("small")
+            print(f"Loading Whisper '{whisper_model_size}' model (more accurate, may take longer)...")
+            model = whisper.load_model(whisper_model_size)
             print("Model loaded successfully!")
         except Exception as e:
             print(f"Error loading Whisper model: {e}")
@@ -830,16 +1151,19 @@ def main():
     while True:
         print("\n Choose an option:")
         print(" (T) Type command")
-        # Only show Voice and Mic Test options if a mic was selected
         if mic_index is not None:
             print(" (V) Voice command")
             print(" (M) Test microphone")
         print(" (D) Microphone diagnostic")
+        print(" (H) Command history")
+        print(" (S) Saved tasks")
+        print(" (C) Command chain")
+        print(" (M) Metrics analysis")
         print(" (Q) Quit")
 
-        prompt_options = "T/D/Q"
+        prompt_options = "T/D/H/S/C/M/Q"
         if mic_index is not None:
-            prompt_options = "T/V/M/D/Q"
+            prompt_options = "T/V/M/D/H/S/C/M/Q"
 
         choice = input(f"\nEnter choice ({prompt_options}): ").strip().lower()
 
@@ -849,16 +1173,19 @@ def main():
             # Pass the 'shell' variable when calling
             command_options = process_with_mistral(plugin_output, shell)
 
-            if command_options: # Check if we got options
-                 # Display options to user - IMPROVED FORMATTING
+            if command_options and isinstance(command_options, dict) and command_options.get("is_chain"):
+                # This is a command chain, handle it differently
+                execute_command_chain(command_options)
+            elif command_options:  # This is the regular single-command case
+                # Display options to user - IMPROVED FORMATTING
                 print("\n Command Options:")
                 for i, option in enumerate(command_options, 1):
                     cmd_text = option.get('command', 'N/A')
                     explanation_text = option.get('explanation', 'No explanation provided.')
                     # Print command and explanation on separate lines with indentation
                     print(f" {i}. Command:     {cmd_text}")
-                    print(f"    Explanation: {explanation_text}\n") # Add a newline for spacing
-
+                    print(f"    Explanation: {explanation_text}\n")  # Add newline for spacing
+                
                 # Let user choose
                 try:
                     select_choice = input(f"\nSelect option (1-{len(command_options)}) or (C)ancel: ").strip() # Use different variable name
@@ -883,13 +1210,16 @@ def main():
         # --- Voice and Mic Test options ---
         # Only process 'v' and 'm' if mic_index is valid
         elif choice == "v" and mic_index is not None:
-            command_text = get_voice_command(input_device_index=mic_index)
+            command_text, metrics = get_voice_command(input_device_index=mic_index)
             if command_text:
                 plugin_output = process_command_with_plugins(command_text, loaded_plugins)
                 # Pass the 'shell' variable when calling
                 command_options = process_with_mistral(plugin_output, shell)
 
-                if command_options: # Check if we got options
+                if command_options and isinstance(command_options, dict) and command_options.get("is_chain"):
+                    # This is a command chain, handle it differently
+                    execute_command_chain(command_options)
+                elif command_options:  # This is the regular single-command case
                     # Display options to user - IMPROVED FORMATTING
                     print("\n Command Options:")
                     for i, option in enumerate(command_options, 1):
@@ -897,8 +1227,8 @@ def main():
                         explanation_text = option.get('explanation', 'No explanation provided.')
                         # Print command and explanation on separate lines with indentation
                         print(f" {i}. Command:     {cmd_text}")
-                        print(f"    Explanation: {explanation_text}\n") # Add a newline for spacing
-
+                        print(f"    Explanation: {explanation_text}\n")  # Add newline for spacing
+                    
                     # Let user choose
                     try:
                         select_choice = input(f"\nSelect option (1-{len(command_options)}) or (C)ancel: ").strip() # Use different variable name
@@ -927,6 +1257,36 @@ def main():
         elif choice == "d":
             diagnose_microphones()
 
+        elif choice == "h":
+            selected_command = show_command_history()
+            if selected_command:
+                execute_command(selected_command)
+
+        elif choice == "s":
+            manage_tasks()
+
+        elif choice == "c":
+            user_input = input("Enter complex command (e.g., 'create a file and move it'): ").strip()
+            debug_mode = input("Enable debug mode? (y/n): ").strip().lower() == 'y'
+            plugin_output = process_command_with_plugins(user_input, loaded_plugins)
+            # Force chain mode and optionally enable debug
+            command_options = process_with_mistral(plugin_output, shell, force_chain=True, debug=debug_mode)
+            
+            if command_options and isinstance(command_options, dict) and command_options.get("is_chain"):
+                execute_command_chain(command_options)
+            else:
+                print(" Could not create a command chain. Try being more specific.")
+                if command_options and not isinstance(command_options, dict):
+                    # Show single command options if available
+                    print(" However, I found these single command options:")
+                    for i, option in enumerate(command_options, 1):
+                        cmd = option.get('command', 'N/A')
+                        explanation = option.get('explanation', '')
+                        print(f" {i}. {cmd}\n    {explanation}")
+
+        elif choice == "m":
+            display_metrics()
+
         elif choice == "q":
             print("Exiting program.")
             break
@@ -937,6 +1297,8 @@ def main():
             else:
                  print("Invalid choice. Please try again.")
 
+    load_command_history()  # Add this line
+
 # Simplify the main block
 if __name__ == "__main__":
     try:
@@ -946,3 +1308,366 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+def explain_command(command):
+    """Use Mistral AI to explain what a command does in plain language."""
+    headers = {
+        "Authorization": f"Bearer {MISTRAL_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": "mistral-tiny",
+        "messages": [
+            {"role": "system", "content": "You are a helpful command-line expert. Explain commands in simple terms."},
+            {"role": "user", "content": f"Please explain what this command does in simple terms: {command}"}
+        ],
+        "temperature": 0.3,
+        "max_tokens": 300
+    }
+    
+    print("\n Getting explanation from Mistral AI...")
+    
+    try:
+        response = requests.post(MISTRAL_ENDPOINT, headers=headers, json=data)
+        response.raise_for_status()
+        
+        result = response.json()
+        explanation = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+        
+        print("\n Command Explanation:")
+        print(f" {explanation}")
+        
+    except Exception as e:
+        print(f" Error getting explanation: {e}")
+
+def parse_mistral_response(response, original_request, is_chain_request=False):
+    """Parse Mistral AI response, handling both single commands and command chains."""
+    try:
+        content = response["choices"][0]["message"]["content"].strip()
+        
+        if is_chain_request:
+            # Enhanced parsing for command chains
+            command_chain = []
+            
+            # Try multiple patterns for command detection
+            step_pattern = r'Step\s+\d+:?\s*\n?COMMAND:\s*([^\n]+)(?:\n|\r\n?)(.*?)(?=Step\s+\d+:|$)'
+            numbered_pattern = r'\d+\.\s*COMMAND:\s*([^\n]+)(?:\n|\r\n?)(.*?)(?=\d+\.\s*COMMAND:|\Z)'
+            command_pattern = r'COMMAND:\s*([^\n]+)(?:\n|\r\n?)(.*?)(?=COMMAND:|\Z)'
+            
+            # Try all patterns
+            matches = re.findall(step_pattern, content, re.DOTALL) or \
+                      re.findall(numbered_pattern, content, re.DOTALL) or \
+                      re.findall(command_pattern, content, re.DOTALL)
+            
+            # No matches with COMMAND prefix, try alternative formats
+            if not matches:
+                # Look for numbered list with commands in backticks
+                alt_pattern = r'\d+\.\s*.*?`([^`]+)`(.*?)(?=\d+\.\s*|\Z)'
+                matches = re.findall(alt_pattern, content, re.DOTALL)
+            
+            # Still no matches, try extracting commands in backticks with explanations
+            if not matches:
+                backtick_pattern = r'`([^`]+)`(.*?)(?=`[^`]+`|\Z)'
+                matches = re.findall(backtick_pattern, content, re.DOTALL)
+            
+            if matches:
+                for cmd, explanation in matches:
+                    command_chain.append({
+                        "command": cmd.strip(),
+                        "explanation": explanation.strip()
+                    })
+            
+            # If we found a command chain, return it with a special flag
+            if len(command_chain) > 1:  # Need at least 2 commands for a chain
+                return {
+                    "is_chain": True,
+                    "steps": command_chain,
+                    "original_request": original_request
+                }
+            elif len(command_chain) == 1:
+                # If only one command found, return as a regular command
+                return [command_chain[0]]
+        
+        # Default to regular parsing for single commands
+        options = []
+        command_pattern = r'`([^`]+)`\s*-?\s*(.+?)(?=\n\n|\n\d+\.|\Z)'
+        matches = re.findall(command_pattern, content, re.DOTALL)
+        
+        for i, (cmd_text, explanation) in enumerate(matches, 1):
+            options.append({
+                'command': cmd_text.strip(),
+                'explanation': explanation.strip()
+            })
+        
+        return options
+    except Exception as e:
+        print(f" Error parsing Mistral response: {e}")
+        return None
+
+def execute_command_chain(command_chain):
+    """Execute a sequence of commands."""
+    if not command_chain or not isinstance(command_chain, dict) or not command_chain.get("is_chain"):
+        print(" Error: Invalid command chain format")
+        return
+    
+    steps = command_chain.get("steps", [])
+    original_request = command_chain.get("original_request", "")
+    
+    if not steps:
+        print(" Error: Command chain contains no steps")
+        return
+    
+    print(f"\n 🔄 Command Chain for: \"{original_request}\"")
+    print(f" Total steps: {len(steps)}")
+    
+    # Ask for confirmation to run the chain
+    print("\n Review the command chain:")
+    for i, step in enumerate(steps, 1):
+        cmd = step.get("command", "")
+        explanation = step.get("explanation", "")
+        print(f"\n Step {i}: {cmd}")
+        print(f" Explanation: {explanation}")
+    
+    print("\n⚠️ WARNING: This will execute multiple commands in sequence.")
+    confirm = input(" Execute this command chain? (Y)es / (N)o / (S)tep-by-step: ").strip().lower()
+    
+    if confirm == 'n':
+        print(" Command chain execution cancelled")
+        return
+    
+    # Execute all commands in sequence
+    for i, step in enumerate(steps, 1):
+        cmd = step.get("command", "")
+        print(f"\n Executing step {i}/{len(steps)}: {cmd}")
+        
+        # Check for dangerous commands
+        if is_command_dangerous(cmd):
+            print(" ⚠️ WARNING: This command looks potentially dangerous!")
+            override = input(" Execute anyway? (y/n): ").strip().lower()
+            if override != 'y':
+                print(" Skipping this command")
+                continue
+        
+        # For step-by-step execution, ask before each command
+        if confirm == 's':
+            step_confirm = input(" Execute this step? (Y)es / (N)o / (A)bort chain: ").strip().lower()
+            if step_confirm == 'n':
+                print(" Skipping this step")
+                continue
+            elif step_confirm == 'a':
+                print(" Aborting command chain execution")
+                break
+        
+        # Execute the command
+        shell = detect_shell()
+        try:
+            print(" Executing command...")
+            start_time = time.time()
+            
+            # Use the appropriate execution method based on shell
+            if shell == "powershell":
+                process = subprocess.Popen(["powershell", "-Command", cmd], 
+                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                                          text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            else:  # cmd
+                process = subprocess.Popen(["cmd", "/c", cmd], 
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                                         text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            
+            stdout, stderr = process.communicate()
+            
+            end_time = time.time()
+            exec_time = end_time - start_time
+            
+            # Print output with line count for long outputs
+            if stdout:
+                lines = stdout.splitlines()
+                print("\n" + "\n".join(lines[:50]))  # Show first 50 lines
+                if len(lines) > 50:
+                    print(f"\n... {len(lines) - 50} more lines (showing 50/{len(lines)})")
+                print(f"\n Total: {len(lines)} lines of output")
+            
+            if stderr:
+                print(f"\n Error output:\n{stderr}")
+            
+            print(f"\n Command step {i} execution complete (took {exec_time:.2f} seconds)")
+            
+            # Add to command history
+            if cmd not in ["", None]:
+                command_history.appendleft(cmd)
+                save_command_history()
+                
+        except Exception as e:
+            print(f"\n Error executing command: {e}")
+            if confirm == 's':
+                abort = input(" An error occurred. Abort chain? (y/n): ").strip().lower()
+                if abort == 'y':
+                    print(" Aborting command chain execution")
+                    break
+    
+    print("\n ✅ Command chain execution complete")
+
+# Add this function to create a metrics system
+def initialize_metrics():
+    """Initialize the metrics tracking system."""
+    metrics_file = os.path.join(SCRIPT_DIR, "usage_metrics.csv")
+    # Check if file exists, if not create with headers
+    if not os.path.exists(metrics_file):
+        with open(metrics_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                'timestamp', 'input_mode', 'command_type', 'execution_time', 
+                'was_successful', 'required_correction', 'transcription_accuracy',
+                'suggestions_count', 'suggestion_selected', 'command_length'
+            ])
+    return metrics_file
+
+def log_metrics(metrics_data):
+    """Log command execution metrics to CSV file."""
+    metrics_file = os.path.join(SCRIPT_DIR, "usage_metrics.csv")
+    
+    try:
+        # Make sure metrics_data contains the required fields
+        if 'input_mode' not in metrics_data:
+            metrics_data['input_mode'] = 'text'  # Default value
+        
+        # Ensure all keys exist to prevent KeyError
+        for key in ['command_type', 'execution_time', 'was_successful', 'required_correction',
+                   'transcription_accuracy', 'suggestions_count', 'suggestion_selected', 'command_length']:
+            if key not in metrics_data:
+                metrics_data[key] = ''
+        
+        with open(metrics_file, 'a', newline='') as f:
+            writer = csv.writer(f)
+            # Add timestamp to the data
+            metrics_data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Convert dict to list in the correct order
+            row = [
+                metrics_data.get('timestamp', ''),
+                metrics_data.get('input_mode', 'text'),  # Default to 'text' if missing
+                metrics_data.get('command_type', 'single'),  # Default to 'single' if missing
+                metrics_data.get('execution_time', 0),
+                metrics_data.get('was_successful', False),
+                metrics_data.get('required_correction', False),
+                metrics_data.get('transcription_accuracy', 0),
+                metrics_data.get('suggestions_count', 0),
+                metrics_data.get('suggestion_selected', 0),
+                metrics_data.get('command_length', 0)
+            ]
+            writer.writerow(row)
+        return True
+    except Exception as e:
+        print(f"Error logging metrics: {e}")
+        return False
+
+def display_metrics():
+    """Display and analyze usage metrics."""
+    metrics_file = os.path.join(SCRIPT_DIR, "usage_metrics.csv")
+    
+    if not os.path.exists(metrics_file):
+        print("\n No metrics data available yet.")
+        return
+    
+    try:
+        # Read metrics data
+        metrics = []
+        with open(metrics_file, 'r', newline='') as f:
+            reader = csv.reader(f)
+            # Skip the header row
+            header = next(reader, None)
+            
+            for row in reader:
+                if len(row) >= 10:  # Ensure we have at least the expected number of columns
+                    metrics.append({
+                        'timestamp': row[0],
+                        'input_mode': row[1],
+                        'command_type': row[2],
+                        'execution_time': row[3],
+                        'was_successful': row[4],
+                        'required_correction': row[5],
+                        'transcription_accuracy': row[6],
+                        'suggestions_count': row[7],
+                        'suggestion_selected': row[8],
+                        'command_length': row[9]
+                    })
+        
+        if not metrics:
+            print("\n No metrics data available yet.")
+            return
+        
+        # Calculate statistics
+        total_commands = len(metrics)
+        voice_commands = sum(1 for m in metrics if m['input_mode'] == 'voice')
+        text_commands = sum(1 for m in metrics if m['input_mode'] == 'text')
+        
+        # Convert to float before doing math
+        try:
+            success_rate = sum(1 for m in metrics if m['was_successful'] == 'True') / total_commands
+        except:
+            success_rate = 0
+            
+        try:
+            avg_exec_time = sum(float(m['execution_time']) for m in metrics) / total_commands
+        except:
+            avg_exec_time = 0
+            
+        try:
+            correction_rate = sum(1 for m in metrics if m['required_correction'] == 'True') / total_commands
+        except:
+            correction_rate = 0
+        
+        # Display summary
+        print("\n📊 Usage Metrics Summary:")
+        print(f" Total commands executed: {total_commands}")
+        print(f" Voice commands: {voice_commands} ({voice_commands/total_commands*100 if total_commands else 0:.1f}%)")
+        print(f" Text commands: {text_commands} ({text_commands/total_commands*100 if total_commands else 0:.1f}%)")
+        print(f" Success rate: {success_rate*100:.1f}%")
+        print(f" Average execution time: {avg_exec_time:.2f} seconds")
+        print(f" Commands requiring correction: {correction_rate*100:.1f}%")
+        
+        # Ask if user wants detailed report
+        choice = input("\n Do you want to (V)iew detailed metrics or (E)xport to CSV? (V/E/C)ancel: ").lower()
+        
+        if choice == 'v':
+            # Show more detailed metrics, perhaps the last 10 commands
+            print("\n Last 10 commands:")
+            for i, m in enumerate(metrics[-10:], 1):
+                try:
+                    exec_time = float(m['execution_time'])
+                except:
+                    exec_time = 0
+                    
+                print(f" {i}. [{m['timestamp']}] {m['input_mode']} command, " +
+                      f"Execution: {exec_time:.2f}s, " +
+                      f"Success: {m['was_successful']}")
+        
+        elif choice == 'e':
+            # Export to a more readable format
+            export_file = os.path.join(SCRIPT_DIR, "metrics_report.csv")
+            with open(export_file, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['Date', 'Command Type', 'Success', 'Execution Time'])
+                for m in metrics:
+                    writer.writerow([
+                        m['timestamp'], 
+                        f"{m['input_mode']} - {m['command_type']}", 
+                        m['was_successful'], 
+                        m['execution_time']
+                    ])
+            print(f"\n Metrics exported to {export_file}")
+    
+    except Exception as e:
+        print(f"\n Error analyzing metrics: {str(e)}")
+        # Add traceback for debugging
+        import traceback
+        print(traceback.format_exc())
+
+def initialize_command_history():
+    """Initialize the command history with configurable size."""
+    config = load_config()
+    max_history = config.getint('History', 'max_commands', fallback=20)
+    
+    global command_history
+    command_history = deque(maxlen=max_history)
+    load_command_history()

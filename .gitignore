@@ -38,4 +38,9 @@ temp/
 *.tmp
 
 # API Keys (for security)
-.env 
+.env
+
+# GitHub Distribution and API Key Management
+config.ini
+*.pkl
+usage_metrics.csv 

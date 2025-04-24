@@ -1,0 +1,22 @@
+[API]
+mistral_api_key = YOUR_API_KEY_HERE
+mistral_endpoint = https://api.mistral.ai/v1/chat/completions
+mistral_model = mistral-tiny
+
+[Whisper]
+model_size = small
+device = cpu
+
+[Paths]
+ffmpeg_path = 
+plugins_dir = plugins
+
+[Recording]
+max_seconds = 12
+silence_threshold = 100
+silence_duration = 3.0
+rate = 16000
+chunk_size = 4096
+
+[History]
+max_commands = 20 

@@ -8,6 +8,9 @@ This project provides a command-line interface (CLI) that allows you to execute 
 *   **Text Input:** Fallback option to type commands directly.
 *   **AI Command Suggestions:** Uses Mistral AI to interpret your intent and suggest appropriate shell commands with explanations.
 *   **Command Execution:** Executes the selected command in your detected shell (PowerShell recommended on Windows).
+*   **Command Chaining:** Execute complex multi-step operations through automated command sequences.
+*   **Task Management:** Save, manage, and run frequently used command sequences.
+*   **Command History:** Access and reuse previously executed commands.
 *   **Microphone Selection:** Choose your preferred input microphone.
 *   **Microphone Testing:** Utility to check if your selected microphone is capturing audio correctly.
 *   **Intelligent Voice Recording:** Automatically starts when you speak and stops after detecting silence.
@@ -15,6 +18,7 @@ This project provides a command-line interface (CLI) that allows you to execute 
 *   **Plugin System:** Extend functionality by adding Python plugins to pre-process commands (e.g., spell checking).
 *   **Dangerous Command Filtering:** Safety system to prevent execution of potentially harmful commands.
 *   **Windows Focused:** Currently optimized and tested primarily for Windows environments (using PowerShell or CMD). Includes necessary patches (`patch_ctypes.py`) for compatibility.
+*   **Metrics System:** Comprehensive tracking of command execution metrics for performance analysis.
 
 ## Requirements
 
@@ -61,7 +65,7 @@ This project provides a command-line interface (CLI) that allows you to execute 
 
 Make sure your virtual environment is activated (`(venv)` should be visible in your prompt).
 
-Run the application using the command installed by `setup.py`:
+Run the application using the command:
 
 ## Using the Application
 
@@ -71,7 +75,12 @@ After launching the application, you will see a menu with the following options:
 * **(V) Voice command:** Speak a command via microphone
 * **(M) Test microphone:** Test if your microphone is working properly
 * **(D) Microphone diagnostic:** Run a detailed microphone diagnostic
+* **(H) Command history:** View and reuse previously executed commands
+* **(S) Saved tasks:** Manage and run saved command sequences
+* **(C) Command chain:** Execute complex operations as a sequence of commands
 * **(Q) Quit:** Exit the application
+
+### Voice Commands
 
 When using voice commands:
 1. The system will perform a quick microphone check
@@ -81,6 +90,22 @@ When using voice commands:
 5. The system will transcribe your speech and offer command suggestions
 6. Select the appropriate command option or cancel
 
+### Command Chaining
+
+The command chaining feature allows you to:
+1. Describe complex tasks that require multiple steps
+2. Review the generated sequence of commands with explanations
+3. Execute all commands automatically or step-by-step
+4. Approve, skip, or abort individual commands in the sequence
+
+### Task Management
+
+The task management system lets you:
+1. Create and save sequences of commands for repeated use
+2. List all your saved tasks
+3. Run a saved task with full control over execution
+4. Delete tasks you no longer need
+
 The application includes a plugin system that can automatically correct common typos or words (e.g., "filez" → "files"). These plugins are loaded from the `plugins` directory.
 
 ## Safety Features
@@ -89,6 +114,7 @@ The application includes several safety features:
 * Filtering of potentially dangerous commands
 * Option to review commands before execution
 * Ability to cancel command execution
+* Step-by-step execution for command chains and tasks
 
 ## Troubleshooting
 
@@ -101,3 +127,18 @@ If you experience microphone issues:
 If Whisper model fails to load:
 * Ensure you have sufficient disk space and memory
 * Check that ffmpeg is properly installed and accessible via PATH
+
+## API Key Setup
+
+This project requires a Mistral AI API key to function:
+
+1. Sign up for a free account at [Mistral AI](https://mistral.ai)
+2. Generate an API key in your account dashboard
+3. Copy the file `config.ini.example` to `config.ini`
+4. Add your API key to the `config.ini` file:
+   ```ini
+   [API]
+   mistral_api_key = YOUR_API_KEY_HERE
+   ```
+
+Alternatively, you can set the `MISTRAL_API_KEY` environment variable instead of using the config file.
