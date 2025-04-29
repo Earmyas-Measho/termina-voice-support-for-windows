@@ -1,3 +1,4 @@
+README.md
 patch_ctypes.py
 setup.py
 voice_clip.py

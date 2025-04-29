@@ -1,5 +1,5 @@
 [API]
-mistral_api_key = YOUR_API_KEY_HERE
+mistral_api_key = 5u6xlgELkWm0WHmvUI9madRxSDTaSs6Q
 mistral_endpoint = https://api.mistral.ai/v1/chat/completions
 mistral_model = mistral-tiny
 
@@ -8,7 +8,7 @@ model_size = small
 device = cpu
 
 [Paths]
-ffmpeg_path = 
+ffmpeg_path = C:\ffmpeg-7.1.1-essentials_build\bin
 plugins_dir = plugins
 
 [Recording]

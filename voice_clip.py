@@ -124,7 +124,7 @@ def select_microphone():
         if mic:
             mic.terminate()
 
-model = None
+whisper_model = None
 
 # Store command history
 HISTORY_FILE = os.path.join(SCRIPT_DIR, "command_history.pkl")
@@ -1119,11 +1119,11 @@ def main():
     # ...rest of main()
 
     # Load the Whisper model at the start of main
-    global model
-    if model is None:
+    global whisper_model
+    if whisper_model is None:
         try:
             print(f"Loading Whisper '{whisper_model_size}' model (more accurate, may take longer)...")
-            model = whisper.load_model(whisper_model_size)
+            whisper_model = whisper.load_model(whisper_model_size)
             print("Model loaded successfully!")
         except Exception as e:
             print(f"Error loading Whisper model: {e}")
