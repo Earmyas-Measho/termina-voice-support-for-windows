@@ -1098,6 +1098,25 @@ def manage_tasks():
                 
         elif choice == "5":
             break
+        1
+def import_wav_tester():
+    """Import the simple WAV tester module if available"""
+    tester_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wav_file_tester.py")
+    
+    if not os.path.exists(tester_path):
+        return None
+        
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("wav__file_tester", tester_path)
+        if spec and spec.loader:
+            tester = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(tester)
+            return tester
+        return None
+    except Exception as e:
+        print(f"Error importing WAV tester: {e}")
+        return None
 
 # Modify main function to check OS at the start
 def main():
@@ -1159,11 +1178,12 @@ def main():
         print(" (S) Saved tasks")
         print(" (C) Command chain")
         print(" (M) Metrics analysis")
+        print(" (W) Test WAV file")
         print(" (Q) Quit")
 
-        prompt_options = "T/D/H/S/C/M/Q"
+        prompt_options = "T/D/H/S/C/M/W/Q"
         if mic_index is not None:
-            prompt_options = "T/V/M/D/H/S/C/M/Q"
+            prompt_options = "T/V/M/D/H/S/C/M/W/Q"
 
         choice = input(f"\nEnter choice ({prompt_options}): ").strip().lower()
 
@@ -1209,7 +1229,7 @@ def main():
 
         # --- Voice and Mic Test options ---
         # Only process 'v' and 'm' if mic_index is valid
-        elif choice == "v" and mic_index is not None:
+        elif choice.lower() == "v" and mic_index is not None:
             command_text, metrics = get_voice_command(input_device_index=mic_index)
             if command_text:
                 plugin_output = process_command_with_plugins(command_text, loaded_plugins)
@@ -1249,6 +1269,7 @@ def main():
                         print(" Invalid input, command cancelled")
                 else:
                     print(" Could not get command suggestions from Mistral.")
+            continue
 
         elif choice == "m" and mic_index is not None:
             test_microphone(input_device_index=mic_index)
@@ -1286,6 +1307,56 @@ def main():
 
         elif choice == "m":
             display_metrics()
+        
+        elif choice == "w":
+          #import the WAV tester module
+          wav_tester = import_wav_tester()
+    
+        if wav_tester is None:
+          print("WAV tester module not found. Make sure wav_tester_file.py is in the same directory.")
+          continue
+        
+        # Get WAV file selection
+        wav_file = wav_tester.select_wav_file()
+    
+        if wav_file:
+          #Test the file
+          transcription = wav_tester.test_wav_file(wav_file, whisper_model)
+        
+          if transcription:
+            # Ask if user wants to use as command
+            process = input("\nProcess this as a command? (y/n): ").strip().lower()
+            
+            if process == 'y':
+              # Process just like voice input
+              plugin_output = process_command_with_plugins(transcription, loaded_plugins)
+              command_options = process_with_mistral(plugin_output, shell)
+                
+              if command_options and isinstance(command_options, dict) and command_options.get("is_chain"):
+                # Handle command chain
+                execute_command_chain(command_options)
+              elif command_options:
+                # Handle normal command options
+                print("\nCommand Options:")
+                for i, option in enumerate(command_options, 1):
+                  cmd_text = option.get('command', 'N/A')
+                  explanation = option.get('explanation', '')
+                  print(f"{i}. {cmd_text}")
+                  print(f"   {explanation}")
+                    
+                    # Let user select
+                try:
+                  choice = input("\nSelect option (1-n) or C to cancel: ").strip().lower()
+                  if choice != 'c':
+                      idx = int(choice) - 1
+                      if 0 <= idx < len(command_options):
+                          selected_command = command_options[idx].get('command')
+                          if selected_command:
+                              execute_command(selected_command)
+                except ValueError:
+                  print("Invalid selection.")
+              else:
+                print("Could not process command.")
 
         elif choice == "q":
             print("Exiting program.")
