@@ -30,8 +30,8 @@ ENV/
 .vscode/
 
 # Audio files
-*.wav
-*.mp3
+# *.wav
+# *.mp3
 
 # Temporary files
 temp/
