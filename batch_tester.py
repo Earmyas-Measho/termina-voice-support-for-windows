@@ -84,35 +84,25 @@ def batch_test_wav_files(directory_path="./resource", whisper_model=None, plugin
             processing_time = time.time() - start_time
             print(f"Transcription complete in {processing_time:.2f} seconds")
             print(f"\nTranscription: \"{transcription}\"")
-            
-            # Ask to process as command (just like manual flow)
-            process = input("\nProcess this as a command? (y/n/s): ").strip().lower()
-            
-            if process == 's':  # Skip all remaining files
-                print("Skipping remaining files...")
-                break
-                
-            if process != 'y':
-                continue
+
+            print("\nAutomatically processing transcription...")
             
             # Process with plugins and Mistral
             plugin_output = process_command_with_plugins(transcription, plugins)
             command_options = process_with_mistral(plugin_output, shell)
             
             if command_options and isinstance(command_options, dict) and command_options.get("is_chain"):
-                # Handle command chain
-                print("\nCommand Chain detected:")
+                # Handle command chain automatically
+                print("\nCommand Chain detected - executing automatically:")
                 for j, step in enumerate(command_options.get("steps", []), 1):
                     cmd = step.get("command", "N/A")
                     print(f"{j}. {cmd}")
                 
-                execute = input("\nExecute this command chain? (y/n): ").strip().lower()
-                if execute == 'y':
-                    from voice_clip import execute_command_chain
-                    execute_command_chain(command_options)
+                from voice_clip import execute_command_chain
+                execute_command_chain(command_options)
             
             elif command_options:
-                # Show command options
+                # Show command options but select automatically
                 print("\nCommand Options:")
                 for j, option in enumerate(command_options, 1):
                     cmd = option.get('command', 'N/A')
@@ -120,23 +110,76 @@ def batch_test_wav_files(directory_path="./resource", whisper_model=None, plugin
                     print(f"{j}. {cmd}")
                     print(f"   {explanation}")
                 
-                # Let user select option
-                try:
-                    choice = input(f"\nSelect option (1-{len(command_options)}) or (C)ancel: ").strip().lower()
-                    if choice == 'c':
-                        continue
-                        
-                    idx = int(choice) - 1
-                    if 0 <= idx < len(command_options):
-                        selected_command = command_options[idx].get('command')
-                        if selected_command:
-                            execute_command(selected_command)
-                    else:
-                        print("Invalid selection")
-                except ValueError:
-                    print("Invalid input, continuing to next file")
+                # Automatically select the 3rd option if available, otherwise the last one
+                if len(command_options) >= 3:
+                    selected_index = 2  # 3rd option (index 2)
+                else:
+                    selected_index = len(command_options) - 1  # Last option
+                
+                selected_command = command_options[selected_index].get('command')
+                if selected_command:
+                    print(f"\nAutomatically selected command (option {selected_index + 1}):")
+                    print(f"  {selected_command}")
+                    execute_command(selected_command)
+                else:
+                    print("Selected option has no valid command.")
             else:
                 print("No command options generated")
+
+
+            # # Uncomment the following lines to process as command
+            # # Ask to process as command (just like manual flow)
+            # process = input("\nProcess this as a command? (y/n/s): ").strip().lower()
+            
+            # if process == 's':  # Skip all remaining files
+            #     print("Skipping remaining files...")
+            #     break
+                
+            # if process != 'y':
+            #     continue
+            
+            # # Process with plugins and Mistral
+            # plugin_output = process_command_with_plugins(transcription, plugins)
+            # command_options = process_with_mistral(plugin_output, shell)
+            
+            # if command_options and isinstance(command_options, dict) and command_options.get("is_chain"):
+            #     # Handle command chain
+            #     print("\nCommand Chain detected:")
+            #     for j, step in enumerate(command_options.get("steps", []), 1):
+            #         cmd = step.get("command", "N/A")
+            #         print(f"{j}. {cmd}")
+                
+            #     execute = input("\nExecute this command chain? (y/n): ").strip().lower()
+            #     if execute == 'y':
+            #         from voice_clip import execute_command_chain
+            #         execute_command_chain(command_options)
+            
+            # elif command_options:
+            #     # Show command options
+            #     print("\nCommand Options:")
+            #     for j, option in enumerate(command_options, 1):
+            #         cmd = option.get('command', 'N/A')
+            #         explanation = option.get('explanation', '')
+            #         print(f"{j}. {cmd}")
+            #         print(f"   {explanation}")
+                
+            #     # Let user select option
+            #     try:
+            #         choice = input(f"\nSelect option (1-{len(command_options)}) or (C)ancel: ").strip().lower()
+            #         if choice == 'c':
+            #             continue
+                        
+            #         idx = int(choice) - 1
+            #         if 0 <= idx < len(command_options):
+            #             selected_command = command_options[idx].get('command')
+            #             if selected_command:
+            #                 execute_command(selected_command)
+            #         else:
+            #             print("Invalid selection")
+            #     except ValueError:
+            #         print("Invalid input, continuing to next file")
+            # else:
+            #     print("No command options generated")
             
         except Exception as e:
             print(f"Error processing {file_name}: {e}")

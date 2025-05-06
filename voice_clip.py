@@ -1121,14 +1121,14 @@ def import_wav_tester():
 # function for the batch tester    
 def import_batch_tester():
     """Import the batch WAV tester module"""
-    tester_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "autuomatic_batch_tester.py")
+    tester_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "batch_tester.py")
     
     if not os.path.exists(tester_path):
         return None
         
     try:
         import importlib.util
-        spec = importlib.util.spec_from_file_location("autuomatic_batch_tester.py", tester_path)
+        spec = importlib.util.spec_from_file_location("batch_tester.py", tester_path)
         if spec and spec.loader:
             tester = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(tester)
