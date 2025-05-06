@@ -1118,6 +1118,26 @@ def import_wav_tester():
         print(f"Error importing WAV tester: {e}")
         return None
 
+# function for the batch tester    
+def import_batch_tester():
+    """Import the batch WAV tester module"""
+    tester_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "autuomatic_batch_tester.py")
+    
+    if not os.path.exists(tester_path):
+        return None
+        
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("autuomatic_batch_tester.py", tester_path)
+        if spec and spec.loader:
+            tester = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(tester)
+            return tester
+        return None
+    except Exception as e:
+        print(f"Error importing batch WAV tester: {e}")
+        return None
+
 # Modify main function to check OS at the start
 def main():
     config = load_config()
@@ -1173,6 +1193,7 @@ def main():
         if mic_index is not None:
             print(" (V) Voice command")
             print(" (M) Test microphone")
+        print(" (B) Batch test WAV files")    
         print(" (D) Microphone diagnostic")
         print(" (H) Command history")
         print(" (S) Saved tasks")
@@ -1181,13 +1202,13 @@ def main():
         print(" (W) Test WAV file")
         print(" (Q) Quit")
 
-        prompt_options = "T/D/H/S/C/M/W/Q"
+        prompt_options = "B/T/D/H/S/C/M/W/Q"
         if mic_index is not None:
-            prompt_options = "T/V/M/D/H/S/C/M/W/Q"
+            prompt_options = "B/T/V/M/D/H/S/C/M/W/Q"
 
         choice = input(f"\nEnter choice ({prompt_options}): ").strip().lower()
 
-        if choice == "t":
+        if choice.lower() == "t":
             user_input = input("Enter command: ").strip().lower()
             plugin_output = process_command_with_plugins(user_input, loaded_plugins)
             # Pass the 'shell' variable when calling
@@ -1226,6 +1247,26 @@ def main():
                     print(" Invalid input, command cancelled")
             else:
                 print(" Could not get command suggestions from Mistral.")
+
+        #import batch tester
+        elif choice == "b":
+          wav_tester = import_batch_tester()
+    
+          if wav_tester is None:
+              print("Batch WAV tester module not found. Make sure streamlined_wav_batch_tester.py is in the same directory.")
+              continue
+            
+          test_dir = input("\nEnter directory with WAV files [./resource]: ").strip()
+          if not test_dir:
+              test_dir = "./resource"
+          
+          # Pass the currently loaded resources to avoid reimporting them
+          wav_tester.batch_test_wav_files(
+              directory_path=test_dir,
+              whisper_model=whisper_model,
+              plugins=loaded_plugins,
+              shell=shell
+          )
 
         # --- Voice and Mic Test options ---
         # Only process 'v' and 'm' if mic_index is valid
@@ -1271,22 +1312,22 @@ def main():
                     print(" Could not get command suggestions from Mistral.")
             continue
 
-        elif choice == "m" and mic_index is not None:
+        elif choice.lower() == "m" and mic_index is not None:
             test_microphone(input_device_index=mic_index)
         # --- End of Voice/Mic options ---
 
-        elif choice == "d":
+        elif choice.lower() == "d":
             diagnose_microphones()
 
-        elif choice == "h":
+        elif choice.lower() == "h":
             selected_command = show_command_history()
             if selected_command:
                 execute_command(selected_command)
 
-        elif choice == "s":
+        elif choice.lower() == "s":
             manage_tasks()
 
-        elif choice == "c":
+        elif choice.lower() == "c":
             user_input = input("Enter complex command (e.g., 'create a file and move it'): ").strip()
             debug_mode = input("Enable debug mode? (y/n): ").strip().lower() == 'y'
             plugin_output = process_command_with_plugins(user_input, loaded_plugins)
@@ -1305,10 +1346,10 @@ def main():
                         explanation = option.get('explanation', '')
                         print(f" {i}. {cmd}\n    {explanation}")
 
-        elif choice == "m":
+        elif choice.lower() == "m":
             display_metrics()
         
-        elif choice == "w":
+        elif choice.lower() == "w":
           #import the WAV tester module
           wav_tester = import_wav_tester()
     
