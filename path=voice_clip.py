@@ -20,7 +20,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Use a fixed API key instead of environment variables
-MISTRAL_API_KEY = "QnypDzjhUzYGMUKVTyqJrpngORGi15TG"
+MISTRAL_API_KEY = "4PHbdUnOjx2gQkCYlgEiKitnxnjTNlcW"
 MISTRAL_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
 
 # Add this near the top of your file, after imports

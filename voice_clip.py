@@ -611,8 +611,13 @@ def execute_command(command, input_mode="text"):
         print("      Press Ctrl+C at any time to cancel execution.")
 
     # Emphasize checking the command
-    print("\n⚠️ IMPORTANT: Review the command carefully before executing! ⚠️")
-    confirmation = input("Execute this command? (Y)es / (N)o / (E)dit / (L)imit results / e(X)plain: ").strip().lower()
+    #print("\n⚠️ IMPORTANT: Review the command carefully before executing! ⚠️")
+    #confirmation = input("Execute this command? (Y)es / (N)o / (E)dit / (L)imit results / e(X)plain: ").strip().lower()
+    
+    # For now, auto-confirm for testing
+    print("\n⚠️ Command will be executed automatically ⚠️")
+    confirmation = 'y'  # Auto-confirm
+
 
     if confirmation == 'l':
         if shell == "powershell":
@@ -620,11 +625,8 @@ def execute_command(command, input_mode="text"):
             if 'Get-ChildItem' in command and '-Recurse' in command:
                 modified_command = command + " | Select-Object -First 50"
                 print(f"\n Modified command with limit: {modified_command}")
-                execute_modified = input("Execute this modified command? (Y/N): ").strip().lower()
-                if execute_modified != 'y':
-                    print("\n Command cancelled")
-                    return
-                command = modified_command
+                print("Limited command will be executed automatically")
+                execute_modified = 'y'  # Auto-confirm
             else:
                 print("Limit option is currently only available for recursive Get-ChildItem commands.")
                 return
@@ -1267,6 +1269,7 @@ def main():
               plugins=loaded_plugins,
               shell=shell
           )
+          continue
 
         # --- Voice and Mic Test options ---
         # Only process 'v' and 'm' if mic_index is valid
@@ -1350,21 +1353,21 @@ def main():
             display_metrics()
         
         elif choice.lower() == "w":
-          #import the WAV tester module
-          wav_tester = import_wav_tester()
+            #import the WAV tester module
+            individual_wav_tester = import_wav_tester()
     
-        if wav_tester is None:
-          print("WAV tester module not found. Make sure wav_tester_file.py is in the same directory.")
-          continue
+            if individual_wav_tester is None:  # Use the new variable name
+                print("WAV tester module not found. Make sure wav_file_tester.py is in the same directory.")
+                continue
         
         # Get WAV file selection
         wav_file = wav_tester.select_wav_file()
     
         if wav_file:
-          #Test the file
-          transcription = wav_tester.test_wav_file(wav_file, whisper_model)
+            #Test the file
+            transcription = wav_tester.test_wav_file(wav_file, whisper_model)
         
-          if transcription:
+        if transcription:
             # Ask if user wants to use as command
             process = input("\nProcess this as a command? (y/n): ").strip().lower()
             
@@ -1542,7 +1545,8 @@ def execute_command_chain(command_chain):
         print(f" Explanation: {explanation}")
     
     print("\n⚠️ WARNING: This will execute multiple commands in sequence.")
-    confirm = input(" Execute this command chain? (Y)es / (N)o / (S)tep-by-step: ").strip().lower()
+    print(" Command chain will be executed automatically")
+    confirm = 'y'  # Auto-confirm
     
     if confirm == 'n':
         print(" Command chain execution cancelled")
@@ -1553,24 +1557,10 @@ def execute_command_chain(command_chain):
         cmd = step.get("command", "")
         print(f"\n Executing step {i}/{len(steps)}: {cmd}")
         
-        # Check for dangerous commands
         if is_command_dangerous(cmd):
-            print(" ⚠️ WARNING: This command looks potentially dangerous!")
-            override = input(" Execute anyway? (y/n): ").strip().lower()
-            if override != 'y':
-                print(" Skipping this command")
-                continue
-        
-        # For step-by-step execution, ask before each command
-        if confirm == 's':
-            step_confirm = input(" Execute this step? (Y)es / (N)o / (A)bort chain: ").strip().lower()
-            if step_confirm == 'n':
-                print(" Skipping this step")
-                continue
-            elif step_confirm == 'a':
-                print(" Aborting command chain execution")
-                break
-        
+            print(" ⚠️ WARNING: This command looks potentially dangerous but will be executed automatically!")
+            # No user input, continue execution
+      
         # Execute the command
         shell = detect_shell()
         try:
