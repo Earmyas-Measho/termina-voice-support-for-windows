@@ -578,7 +578,7 @@ def process_with_mistral(command, shell, force_chain=False, debug=False):
         print(f" Error during Mistral API request: {e}")
         return None
 
-# Modify execute_command confirmation for clarity
+# execute_command
 def execute_command(command, input_mode="text"):
     """Execute a command in the appropriate shell."""
     shell = detect_shell()
@@ -653,6 +653,7 @@ def execute_command(command, input_mode="text"):
                 process = subprocess.Popen(["powershell", "-Command", command], 
                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
                                           text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                
             else:  # cmd
                 process = subprocess.Popen(["cmd", "/c", command], 
                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
@@ -674,6 +675,7 @@ def execute_command(command, input_mode="text"):
                 
                 # Update metrics to show cancellation
                 metrics['was_successful'] = False
+                metrics['output_status'] = "no"
                 metrics['execution_time'] = time.time() - start_time
                 log_metrics(metrics)
                 return
@@ -685,6 +687,12 @@ def execute_command(command, input_mode="text"):
             # Save metrics
             metrics['execution_time'] = exec_time
             metrics['was_successful'] = success
+
+            # Add output status tracking here
+            if stdout:
+                metrics['output_status'] = "yes"
+            else:
+                metrics['output_status'] = "executed with no reply"
             log_metrics(metrics)
             
             # Rest of your existing code...
@@ -700,14 +708,19 @@ def execute_command(command, input_mode="text"):
             print(f"\n Command execution complete (took {exec_time:.2f} seconds)")
         except subprocess.TimeoutExpired:
             print("\n⚠️ Command timed out after 60 seconds. Consider refining your command or using option (L) to limit results.")
+            metrics['output_status'] = "no"
+            metrics['was_successful'] = False
         except subprocess.CalledProcessError as e:
             print(f"\nError during command execution: {e}")
             if e.stderr:
                 print(f"Error details: {e.stderr}")
+                metrics['output_status'] = "no"
         except KeyboardInterrupt:
             print("\n\n⚠️ Command execution cancelled by user.")
+            metrics['output_status'] = "no"
         except Exception as e:
             print(f"\nAn unexpected error occurred: {e}")
+            metrics['output_status'] = "no"
     elif confirmation == 'e':
         edited = input("\n Enter modified command: ").strip()
         if edited:
@@ -1621,7 +1634,7 @@ def initialize_metrics():
             writer.writerow([
                 'timestamp', 'input_mode', 'command_type', 'execution_time', 
                 'was_successful', 'required_correction', 'transcription_accuracy',
-                'suggestions_count', 'suggestion_selected', 'command_length'
+                'suggestions_count', 'suggestion_selected', 'command_length', 'output_status'
             ])
     return metrics_file
 
@@ -1636,7 +1649,8 @@ def log_metrics(metrics_data):
         
         # Ensure all keys exist to prevent KeyError
         for key in ['command_type', 'execution_time', 'was_successful', 'required_correction',
-                   'transcription_accuracy', 'suggestions_count', 'suggestion_selected', 'command_length']:
+                   'transcription_accuracy', 'suggestions_count', 'suggestion_selected', 'command_length', 
+                   'output_status']:
             if key not in metrics_data:
                 metrics_data[key] = ''
         
@@ -1655,7 +1669,8 @@ def log_metrics(metrics_data):
                 metrics_data.get('transcription_accuracy', 0),
                 metrics_data.get('suggestions_count', 0),
                 metrics_data.get('suggestion_selected', 0),
-                metrics_data.get('command_length', 0)
+                metrics_data.get('command_length', 0),
+                metrics_data.get('output_status', 'unknown')
             ]
             writer.writerow(row)
         return True
