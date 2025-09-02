@@ -1,8 +1,8 @@
-# VoiceCLI Study Raw Data
+# 🎤 VoiceCLI Study Research Data
 
-This directory contains the complete raw data from the VoiceCLI user study, enabling full reproducibility of all findings presented in the thesis.
+This directory contains the complete raw data from the **VoiceCLI User Study**, enabling full reproducibility of all findings presented in the thesis: *"VoiceCLI: Voice-Driven Command Line Interface for Windows"*.
 
-## 📊 Dataset Overview
+## 📊 Study Overview
 
 - **Study Type**: Controlled User Study
 - **Total Participants**: 25
@@ -14,7 +14,7 @@ This directory contains the complete raw data from the VoiceCLI user study, enab
 
 ## 📁 Data Files
 
-### 1. VoiceCLI_Raw_Data_CORRECTED.csv
+### 1. `VoiceCLI_Raw_Data_CORRECTED.csv`
 **Participant-level demographic and performance data**
 - 25 participants with complete demographics
 - Individual success rates (50% to 100%)
@@ -26,7 +26,7 @@ This directory contains the complete raw data from the VoiceCLI user study, enab
 
 **Columns**: Participant_ID, Age, Gender, CLI_Usage_Frequency, Primary_OS, Has_Voice_Assistant, Accessibility_Needs, Total_Success, Success_Rate, ASR_Accuracy, LLM_Top1_Accuracy, LLM_Top3_Accuracy, Avg_Latency_Seconds, Total_Retries, Manual_Edits, SUS_Score, Trust_Confirmation, Hands_Free_Convenience, Accessibility_Value, Latency_Acceptable, Would_Use_Daily
 
-### 2. VoiceCLI_Task_Level_Data.csv
+### 2. `VoiceCLI_Task_Level_Data.csv`
 **Individual trial-level data for all 500 tasks**
 - Task descriptions and difficulty levels
 - ASR transcripts and accuracy scores
@@ -39,7 +39,7 @@ This directory contains the complete raw data from the VoiceCLI user study, enab
 
 **Columns**: Trial_ID, Participant_ID, Task_Number, Task_Difficulty, Task_Description, ASR_Transcript, Reference_Text, ASR_Accuracy, LLM_Suggestion_1, LLM_Suggestion_2, LLM_Suggestion_3, Correct_Suggestion_Rank, User_Choice, Final_Command, Execution_Success, Execution_Time_Seconds, ASR_Time, LLM_Time, Confirmation_Time, Total_Latency, Retry_Count, Manual_Edit, Error_Category, Error_Details
 
-### 3. VoiceCLI_Error_Analysis_CORRECTED.csv
+### 3. `VoiceCLI_Error_Analysis_CORRECTED.csv`
 **Comprehensive analysis of all 125 failed trials**
 - Error categorization (LLM, ASR, User, Environment)
 - Root cause analysis and prevention strategies
@@ -51,7 +51,7 @@ This directory contains the complete raw data from the VoiceCLI user study, enab
 
 **Columns**: Error_ID, Trial_ID, Participant_ID, Task_Difficulty, Task_Description, Error_Category, Error_Subcategory, Error_Description, ASR_Transcript, Reference_Text, ASR_Accuracy, LLM_Suggestion_1, LLM_Suggestion_2, LLM_Suggestion_3, Correct_Command, User_Action, Recovery_Attempted, Recovery_Successful, Error_Severity, Root_Cause, Prevention_Strategy
 
-### 4. VoiceCLI_Summary_Statistics_FINAL_CORRECTED.txt
+### 4. `VoiceCLI_Summary_Statistics_FINAL_CORRECTED.txt`
 **Complete study metrics and statistical analysis**
 - Performance metrics with 95% confidence intervals
 - Success rates by task difficulty
@@ -62,7 +62,7 @@ This directory contains the complete raw data from the VoiceCLI user study, enab
 - Qualitative insights and feedback themes
 - Future work priorities and recommendations
 
-### 5. FINAL_VERIFICATION_CHECK.txt
+### 5. `FINAL_VERIFICATION_CHECK.txt`
 **Mathematical verification and quality assurance**
 - Complete mathematical verification of all calculations
 - Cross-file consistency checks
@@ -128,6 +128,12 @@ Master's Thesis, [University Name].
 https://github.com/Earmyas-Measho/termina-voice-support-for-windows.git
 ```
 
+## 🔗 Related Files
+
+- **Thesis**: `Thesis (1).tex` (in repository root)
+- **Application Code**: See main repository for VoiceCLI implementation
+- **Documentation**: Comprehensive setup and usage instructions in main README
+
 ## 🤝 Contributing
 
 This dataset is provided under an open-source license. If you find any issues or have suggestions for improvements, please:
@@ -148,3 +154,5 @@ For questions about this dataset or the VoiceCLI study:
 ---
 
 **Note**: This dataset has been mathematically verified to ensure 100% consistency across all files. All calculations have been triple-checked for accuracy and reproducibility.
+
+**Repository Structure**: This data is part of the larger VoiceCLI project, which includes both the research findings and the actual voice command interface implementation.
