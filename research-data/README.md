@@ -130,9 +130,9 @@ https://github.com/Earmyas-Measho/termina-voice-support-for-windows.git
 
 ## 🔗 Related Files
 
-- **Thesis**: `Thesis (1).tex` (in repository root)
 - **Application Code**: See main repository for VoiceCLI implementation
 - **Documentation**: Comprehensive setup and usage instructions in main README
+- **Thesis Reference**: Raw data availability section references this repository
 
 ## 🤝 Contributing
 
