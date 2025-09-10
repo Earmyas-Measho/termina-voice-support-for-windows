@@ -1,15 +1,22 @@
 [API]
-mistral_api_key = 5u6xlgELkWm0WHmvUI9madRxSDTaSs6Q
+mistral_api_key = 
 mistral_endpoint = https://api.mistral.ai/v1/chat/completions
-mistral_model = mistral-tiny
+mistral_model = mistral-7b-instruct
+timeout = 30
+retry_attempts = 3
 
 [Whisper]
-model_size = small
+model_size = small.en
 device = cpu
+language = en
+fp16 = false
+temperature = 0.0
 
 [Paths]
 ffmpeg_path = C:\ffmpeg-7.1.1-essentials_build\bin
 plugins_dir = plugins
+log_dir = logs
+data_dir = data
 
 [Recording]
 max_seconds = 12
@@ -17,6 +24,51 @@ silence_threshold = 100
 silence_duration = 3.0
 rate = 16000
 chunk_size = 4096
+channels = 1
+format = paInt16
 
 [History]
-max_commands = 20 
+max_commands = 20
+save_history = true
+history_file = command_history.pkl
+
+[Safety]
+enable_blacklist = true
+require_confirmation = true
+dangerous_command_timeout = 60
+max_output_lines = 1000
+
+[TTS]
+enabled = true
+rate = 150
+volume = 0.8
+voice = default
+announce_commands = true
+announce_results = true
+
+[Logging]
+level = INFO
+file = voicecli.log
+max_size = 10MB
+backup_count = 5
+format = %(asctime)s - %(name)s - %(levelname)s - %(message)s
+
+[Metrics]
+enabled = true
+file = usage_metrics.csv
+track_latency = true
+track_accuracy = true
+track_user_satisfaction = true
+
+[Accessibility]
+screen_reader_mode = false
+high_contrast = false
+large_text = false
+audio_feedback = true
+keyboard_shortcuts = true
+
+[Performance]
+max_concurrent_requests = 5
+cache_size = 100
+enable_caching = true
+optimize_for_speed = false 

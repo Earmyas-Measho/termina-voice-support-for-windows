@@ -1,0 +1,101 @@
+Task_ID,Natural_Language_Command,Windows_Command,Difficulty_Level,Difficulty_Category,Description
+VS001,List all files in current directory,Get-ChildItem,1,Easy,Single-step action
+VS002,Show current working directory,Get-Location,1,Easy,Single-step action
+VS003,Show current date and time,Get-Date,1,Easy,Single-step action
+VS004,Clear the screen,Clear-Host,1,Easy,Single-step action
+VS005,Show running processes,Get-Process,1,Easy,Single-step action
+VS006,Show help for dir command,Get-Help dir,1,Easy,Single-step action
+VS007,Check disk space,Get-WmiObject -Class Win32_LogicalDisk,1,Easy,Single-step action
+VS008,Show environment variables,Get-ChildItem Env:,1,Easy,Single-step action
+VS009,Check network settings,Get-NetIPConfiguration,1,Easy,Single-step action
+VS010,Show computer information,Get-ComputerInfo,1,Easy,Single-step action
+VS011,Show user accounts,Get-LocalUser,1,Easy,Single-step action
+VS012,Show installed programs,Get-WmiObject -Class Win32_Product,1,Easy,Single-step action
+VS013,Check Windows version,Get-ComputerInfo | Select-Object WindowsProductName,1,Easy,Single-step action
+VS014,Show computer name,Get-WmiObject -Class Win32_ComputerSystem | Select-Object Name,1,Easy,Single-step action
+VS015,List drives,Get-WmiObject -Class Win32_LogicalDisk,1,Easy,Single-step action
+VS016,Show recent files,Get-ChildItem -Path $env:USERPROFILE\Recent,1,Easy,Single-step action
+VS017,Check scheduled tasks,Get-ScheduledTask,1,Easy,Single-step action
+VS018,Show how long computer has been running,Get-ComputerInfo | Select-Object LastBootUpTime,1,Easy,Single-step action
+VS019,Check memory usage,Get-WmiObject -Class Win32_OperatingSystem,1,Easy,Single-step action
+VS020,Show current username,Get-WmiObject -Class Win32_ComputerSystem | Select-Object UserName,1,Easy,Single-step action
+VS021,List network adapters,Get-NetAdapter,1,Easy,Single-step action
+VS022,List services,Get-Service,1,Easy,Single-step action
+VS023,Show Windows features,Get-WindowsFeature,1,Easy,Single-step action
+VS024,Check firewall,Get-NetFirewallProfile,1,Easy,Single-step action
+VS025,Show drivers,Get-WmiObject -Class Win32_SystemDriver,1,Easy,Single-step action
+VS026,List network connections,Get-NetTCPConnection,1,Easy,Single-step action
+VS027,Show screen resolution,Get-WmiObject -Class Win32_VideoController,1,Easy,Single-step action
+VS028,Check battery,Get-WmiObject -Class Win32_Battery,1,Easy,Single-step action
+VS029,Show startup programs,Get-CimInstance Win32_StartupCommand,1,Easy,Single-step action
+VS030,Check system language,Get-WinSystemLocale,1,Easy,Single-step action
+VS031,Show processor information,Get-WmiObject -Class Win32_Processor,1,Easy,Single-step action
+VS032,Check motherboard,Get-WmiObject -Class Win32_BaseBoard,1,Easy,Single-step action
+VS033,Show USB devices,Get-WmiObject -Class Win32_USBControllerDevice,1,Easy,Single-step action
+VS034,List printers,Get-WmiObject -Class Win32_Printer,1,Easy,Single-step action
+VS035,Show time zone,Get-TimeZone,1,Easy,Single-step action
+VS036,Check keyboard layout,Get-WinUserLanguageList,1,Easy,Single-step action
+VS037,Show sound devices,Get-WmiObject -Class Win32_SoundDevice,1,Easy,Single-step action
+VS038,Check power settings,Get-WmiObject -Class Win32_PowerPlan,1,Easy,Single-step action
+VS039,Show system architecture,Get-WmiObject -Class Win32_OperatingSystem | Select-Object OSArchitecture,1,Easy,Single-step action
+VS040,Check Windows updates,Get-HotFix,1,Easy,Single-step action
+VS041,Find all text files here,"Get-ChildItem -Filter ""*.txt""",2,Medium,Command with options or pipelines
+VS042,Count lines in a file,Get-Content file.txt | Measure-Object -Line,2,Medium,Command with options or pipelines
+VS043,Search for text in files,"Select-String -Path ""*.txt"" -Pattern ""search_text""",2,Medium,Command with options or pipelines
+VS044,Create a folder called test,"New-Item -ItemType Directory -Name ""test""",2,Medium,Command with options or pipelines
+VS045,Copy file to backup,"Copy-Item ""file.txt"" ""backup\file.txt""",2,Medium,Command with options or pipelines
+VS046,Check file permissions,"Get-Acl ""file.txt""",2,Medium,Command with options or pipelines
+VS047,Find big files over 10MB,Get-ChildItem -Recurse | Where-Object {$_.Length -gt 10MB},2,Medium,Command with options or pipelines
+VS048,Rename a file,"Rename-Item ""oldname.txt"" ""newname.txt""",2,Medium,Command with options or pipelines
+VS049,Move file to another folder,"Move-Item ""file.txt"" ""destination\file.txt""",2,Medium,Command with options or pipelines
+VS050,Delete a folder with files,"Remove-Item ""directory"" -Recurse -Force",2,Medium,Command with options or pipelines
+VS051,Sort files by size,Get-ChildItem | Sort-Object Length -Descending,2,Medium,Command with options or pipelines
+VS052,Sort files by date,Get-ChildItem | Sort-Object LastWriteTime -Descending,2,Medium,Command with options or pipelines
+VS053,Find files by name,"Get-ChildItem -Recurse -Name ""*pattern*""",2,Medium,Command with options or pipelines
+VS054,Find processes by name,"Get-Process -Name ""processname""",2,Medium,Command with options or pipelines
+VS055,Stop a process by ID,Stop-Process -Id 1234,2,Medium,Command with options or pipelines
+VS056,Find files changed in last week,Get-ChildItem -Recurse | Where-Object {$_.LastWriteTime -gt (Get-Date).AddDays(-7)},3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS057,Find big files in Documents,Get-ChildItem -Path $env:USERPROFILE\Documents -Recurse | Where-Object {$_.Length -gt 100MB},3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS058,Count files in Downloads,Get-ChildItem -Path $env:USERPROFILE\Downloads -Recurse -File | Measure-Object | Select-Object Count,3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS059,Find programs in Program Files,Get-ChildItem -Path 'C:\Program Files' -Recurse -Filter '*.exe',3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS060,Find files created today,Get-ChildItem -Recurse | Where-Object {$_.CreationTime.Date -eq (Get-Date).Date},3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS061,Find memory-heavy processes,Get-Process | Where-Object {$_.WorkingSet -gt 500MB},3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS062,Show top CPU processes,Get-Process | Sort-Object CPU -Descending | Select-Object -First 5,3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS063,Find Chrome processes,Get-Process -Name 'chrome' -ErrorAction SilentlyContinue,3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS064,Find recent processes,Get-Process | Where-Object {$_.StartTime -gt (Get-Date).AddHours(-1)},3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS065,Find processes by window,Get-Process | Where-Object {$_.MainWindowTitle -like '*Notepad*'},3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS066,Find web connections,Get-NetTCPConnection -LocalPort 80 -State Established,3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS067,Find listening ports,Get-NetTCPConnection -State Listen,3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS068,Find connections to IP,Get-NetTCPConnection | Where-Object {$_.RemoteAddress -eq '8.8.8.8'},3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS069,Check memory usage,"Get-WmiObject -Class Win32_OperatingSystem | Select-Object @{Name='TotalMB';Expression={[math]::Round($_.TotalVisibleMemorySize/1024,2)}}",3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS070,Show disk space,"Get-WmiObject -Class Win32_LogicalDisk | Select-Object DeviceID, @{Name='SizeGB';Expression={[math]::Round($_.Size/1GB,2)}}, @{Name='FreeGB';Expression={[math]::Round($_.FreeSpace/1GB,2)}}",3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS071,Search logs for text,Get-ChildItem -Recurse -Filter '*.log' | Select-String -Pattern 'error',3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS072,Count words in file,Get-Content file.txt | Measure-Object -Word,3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS073,Find errors in logs,Get-ChildItem -Filter '*.log' | Get-Content | Select-String 'ERROR',3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS074,Show first lines of file,Get-Content largefile.txt -TotalCount 10,3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS075,Find duplicate files,Get-ChildItem -Recurse -File | Group-Object Length | Where-Object {$_.Count -gt 1},3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS076,Show startup programs,Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run',3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS077,Show Windows version details,"Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, WindowsBuildLabEx",3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS078,Show .NET versions,Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -Recurse | Get-ItemProperty -Name version -EA 0 | Where-Object {$_.PSChildName -match '^(?!S)\p{L}'},3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS079,Show enabled Windows features,Get-WindowsOptionalFeature -Online | Where-Object {$_.State -eq 'Enabled'},3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS080,Show environment variables,Get-ChildItem Env: | Sort-Object Name,3,Hard,"Complex command with multiple parameters, filtering, or advanced operations"
+VS081,Find all image files in current directory,"Get-ChildItem -Filter '*.jpg','*.png','*.gif','*.bmp'",2,Medium,Command with options or pipelines
+VS082,Show file sizes in human readable format,"Get-ChildItem | Select-Object Name, @{Name='SizeMB';Expression={[math]::Round($_.Length/1MB,2)}}",2,Medium,Command with options or pipelines
+VS083,List files created this week,Get-ChildItem | Where-Object {$_.CreationTime -gt (Get-Date).AddDays(-7)},2,Medium,Command with options or pipelines
+VS084,Find files with specific extension,Get-ChildItem -Recurse -Filter '*.txt',2,Medium,Command with options or pipelines
+VS085,Show running processes sorted by memory,Get-Process | Sort-Object WorkingSet -Descending,2,Medium,Command with options or pipelines
+VS086,Show system info in table,Get-ComputerInfo | Format-Table,2,Medium,Command with options or pipelines
+VS087,Show network connections with process names,Get-NetTCPConnection | Where-Object {$_.State -eq 'Established'} | ForEach-Object {Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue},2,Medium,Command with options or pipelines
+VS088,Find files larger than 50MB,Get-ChildItem -Recurse | Where-Object {$_.Length -gt 50MB},2,Medium,Command with options or pipelines
+VS089,List directories only,Get-ChildItem -Directory,2,Medium,Command with options or pipelines
+VS090,Show files with specific name pattern,Get-ChildItem -Name '*test*',2,Medium,Command with options or pipelines
+VS091,Show process CPU usage,"Get-Process | Select-Object Name, CPU, @{Name='CPU%';Expression={$_.CPU/$_.TotalProcessorTime}}",2,Medium,Command with options or pipelines
+VS092,Find files modified today,Get-ChildItem | Where-Object {$_.LastWriteTime.Date -eq (Get-Date).Date},2,Medium,Command with options or pipelines
+VS093,Show system services that are running,Get-Service | Where-Object {$_.Status -eq 'Running'},2,Medium,Command with options or pipelines
+VS094,List files by extension,Get-ChildItem | Group-Object Extension,2,Medium,Command with options or pipelines
+VS095,List network adapters,Get-NetAdapter | Where-Object {$_.Status -eq 'Up'},2,Medium,Command with options or pipelines
+VS096,Find files with specific permissions,Get-ChildItem | Get-Acl | Where-Object {$_.Access -like '*FullControl*'},2,Medium,Command with options or pipelines
+VS097,Show Windows features that are enabled,Get-WindowsOptionalFeature -Online | Where-Object {$_.State -eq 'Enabled'},2,Medium,Command with options or pipelines
+VS098,List files sorted by access time,Get-ChildItem | Sort-Object LastAccessTime -Descending,2,Medium,Command with options or pipelines
+VS099,Show files with specific size range,Get-ChildItem | Where-Object {$_.Length -gt 1MB -and $_.Length -lt 10MB},2,Medium,Command with options or pipelines
+VS100,Find files between 1MB and 10MB,Get-ChildItem | Where-Object {$_.Length -gt 1MB -and $_.Length -lt 10MB},2,Medium,Command with options or pipelines

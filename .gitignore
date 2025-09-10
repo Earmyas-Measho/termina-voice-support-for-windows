@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -21,26 +20,33 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Virtual environments
 venv/
+env/
 ENV/
 
 # IDE
-.idea/
 .vscode/
+.idea/
+*.swp
+*.swo
 
-# Audio files
-# *.wav
-# *.mp3
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+recording_materials/
+config.ini
+*.wav
+*.mp3
+*.m4a
 
 # Temporary files
-temp/
 *.tmp
+*.temp
+notes.txt
 
-# API Keys (for security)
-.env
-
-# GitHub Distribution and API Key Management
-config.ini
-*.pkl
-usage_metrics.csv 
+# Test outputs
+test_outputs/
+*.log

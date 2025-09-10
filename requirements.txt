@@ -1,0 +1,26 @@
+# VoiceCLI Dependencies
+# Core dependencies
+openai-whisper>=20231117
+numpy>=1.21.0
+pyaudio>=0.2.11
+requests>=2.25.0
+pyttsx3>=2.90
+
+# Development dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-timeout>=2.1.0
+
+# Code quality
+flake8>=5.0.0
+black>=22.0.0
+
+# Security
+safety>=2.3.0
+bandit>=1.7.0
+
+# Build tools
+build>=0.8.0
+setuptools>=65.0.0
+wheel>=0.37.0

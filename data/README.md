@@ -1,89 +1,30 @@
-# VoiceCLI: Voice-Driven Command Line Interface for Windows
+# VoiceCLI Study Raw Data
 
-VoiceCLI is a privacy-preserving, confirmation-centric voice assistant for Windows command-line environments. It combines local Automatic Speech Recognition (ASR) using Whisper with cloud-based Large Language Model (LLM) inference via Mistral-7B to provide natural language command generation with explicit user confirmation for safety.
+This directory contains the raw data from the VoiceCLI user study, supporting the findings presented in the thesis.
 
-## 🎯 Key Features
+## Dataset Overview
 
-- **Privacy-First Design**: Raw audio never leaves your device (local Whisper ASR)
-- **Confirmation-Centric**: All commands require explicit user approval before execution
-- **Accessibility-Focused**: TTS summaries and screen reader support
-- **Extensible Plugin System**: Domain-specific command enhancements
-- **Comprehensive Testing**: 48 unit tests + 200 integration tests
-- **Production-Ready**: CI/CD pipeline with security scanning
+- **Study Type**: Controlled User Study
+- **Total Participants**: 25
+- **Total Trials**: 500 (20 tasks per participant)
+- **Study Duration**: 45 minutes average per participant
+- **Platform**: Windows 10/11
+- **ASR Model**: Whisper small.en (offline)
+- **LLM Model**: Mistral-7B-Instruct (cloud-hosted)
 
-## 📊 Performance Metrics (From User Study)
-
-- **Overall Task Success Rate**: 73.20% (366/500 trials)
-- **ASR Word-Level Accuracy**: 94.23%
-- **LLM Top-3 Accuracy**: 83.00%
-- **Average Latency**: 8.30 seconds
-- **User Satisfaction (SUS)**: 75.10/100
-- **Study Participants**: 25 users, 500 total trials
-
-## 🚀 Quick Start
-
-### Installation
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Earmyas-Measho/termina-voice-support-for-windows.git
-   cd termina-voice-support-for-windows
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configure the system**:
-   ```bash
-   copy config.ini.example config.ini
-   # Edit config.ini with your Mistral API key
-   ```
-
-4. **Run VoiceCLI**:
-   ```bash
-   python voice_cli.py
-   ```
-
-### Basic Usage
-
-1. **Voice Commands**: Press `V` and speak your command naturally
-2. **Text Commands**: Press `T` and type your command
-3. **Review & Confirm**: Always review generated commands before execution
-4. **Safety First**: Dangerous commands require explicit confirmation
-
-### Example Commands
-
-- "list all files in this directory"
-- "show me running processes"
-- "create a new folder called test"
-- "find all PDF files recursively"
-
-## 🏗️ Architecture
-
-VoiceCLI follows a six-stage pipeline:
-
-1. **Microphone Capture** → Local audio recording
-2. **Offline ASR** → Whisper transcription (privacy-preserving)
-3. **LLM Inference** → Mistral-7B command generation (cloud)
-4. **User Confirmation** → Explicit approval interface
-5. **Shell Execution** → PowerShell/CMD execution
-6. **Output Rendering** → Results + optional TTS summary
-
-## 📁 Research Data
-
-This repository includes complete research data from the user study:
+## Data Files
 
 ### 1. VoiceCLI_Raw_Data.csv
 **Participant-level demographic and performance data**
-- 25 participants with complete demographics
+- 25 participants with demographic information
 - Individual success rates (50% to 100%)
 - ASR accuracy variations (93.2% to 98.5%)
 - LLM performance metrics
 - Latency measurements (6.3s to 10.1s)
 - SUS scores (73.8 to 85.7)
 - Qualitative feedback responses
+
+**Columns**: Participant_ID, Age, Gender, CLI_Usage_Frequency, Primary_OS, Has_Voice_Assistant, Accessibility_Needs, Total_Success, Success_Rate, ASR_Accuracy, LLM_Top1_Accuracy, LLM_Top3_Accuracy, Avg_Latency_Seconds, Total_Retries, Manual_Edits, SUS_Score, Trust_Confirmation, Hands_Free_Convenience, Accessibility_Value, Latency_Acceptable, Would_Use_Daily
 
 ### 2. VoiceCLI_Task_Level_Data.csv
 **Individual trial-level data for all 500 tasks**
@@ -99,19 +40,19 @@ This repository includes complete research data from the user study:
 **Columns**: Trial_ID, Participant_ID, Task_Number, Task_Difficulty, Task_Description, ASR_Transcript, Reference_Text, ASR_Accuracy, LLM_Suggestion_1, LLM_Suggestion_2, LLM_Suggestion_3, Correct_Suggestion_Rank, User_Choice, Final_Command, Execution_Success, Execution_Time_Seconds, ASR_Time, LLM_Time, Confirmation_Time, Total_Latency, Retry_Count, Manual_Edit, Error_Category, Error_Details
 
 ### 3. VoiceCLI_Error_Analysis.csv
-**Comprehensive analysis of all 134 failed trials**
+**Analysis of all 134 failed trials**
 - Error categorization (LLM, ASR, User, Environment)
 - Root cause analysis and prevention strategies
 - Recovery attempts and outcomes
 - Error severity ratings
-- Detailed error descriptions
+- Error descriptions and analysis
 - ASR transcripts vs. reference text
 - LLM suggestion analysis
 
 **Columns**: Error_ID, Trial_ID, Participant_ID, Task_Difficulty, Task_Description, Error_Category, Error_Subcategory, Error_Description, ASR_Transcript, Reference_Text, ASR_Accuracy, LLM_Suggestion_1, LLM_Suggestion_2, LLM_Suggestion_3, Correct_Command, User_Action, Recovery_Attempted, Recovery_Successful, Error_Severity, Root_Cause, Prevention_Strategy
 
 ### 4. VoiceCLI_Summary_Statistics.txt
-**Complete study metrics and statistical analysis**
+**Study metrics and statistical analysis**
 - Performance metrics with 95% confidence intervals
 - Success rates by task difficulty
 - ASR and LLM accuracy breakdowns
@@ -127,28 +68,27 @@ This repository includes complete research data from the user study:
 - Cross-file consistency maintained across all data files
 - Success rates and error breakdowns are accurate
 - Data integrity confirmed for academic use
-- Quality assurance documentation
 
-## 🔢 Key Performance Metrics
+## Key Performance Metrics
 
 - **Overall Task Success Rate**: 73.20% (366/500 trials)
 - **Success by Difficulty**:
-  - Easy Tasks: 78.47% (157/200)
-  - Medium Tasks: 75.43% (132/175)
-  - Hard Tasks: 68.80% (86/125)
+  - Easy Tasks: 78.50% (157/200)
+  - Medium Tasks: 71.43% (125/175)
+  - Hard Tasks: 67.20% (84/125)
 - **ASR Word-Level Accuracy**: 94.23%
 - **LLM Top-3 Accuracy**: 83.00% (medium difficulty)
 - **Average Latency**: 8.30 seconds
 - **SUS Score**: 75.10 (mean)
 
-## 📈 Statistical Reliability
+## Statistical Reliability
 
 - **Sample Size**: 25 participants (adequate for HCI studies)
 - **Confidence Intervals**: 95% bootstrap CIs (1,000 resamples)
 - **Inter-rater Reliability**: Cohen's κ = 0.92 (excellent agreement)
 - **Internal Consistency**: Cronbach's α measures applied
 
-## 🔒 Data Privacy & Ethics
+## Data Privacy & Ethics
 
 - All participant data is anonymized
 - No personally identifiable information included
@@ -156,13 +96,13 @@ This repository includes complete research data from the user study:
 - Ethical approval obtained for study
 - Participants provided informed consent
 
-## 🚀 Usage Guidelines
+## Usage Guidelines
 
 ### For Researchers
 - Use for replication studies and meta-analyses
 - Verify statistical calculations independently
 - Cite the original thesis when using this data
-- Contact authors for additional context if needed
+- Contact me for additional context if needed
 
 ### For Educators
 - Use as teaching material for HCI courses
@@ -176,33 +116,33 @@ This repository includes complete research data from the user study:
 - Learn from user feedback and suggestions
 - Apply insights to voice interface design
 
-## 📚 Citation
+## Citation
 
 When using this dataset, please cite:
 
 ```
-Earmyas-Measho. (2025). VoiceCLI: Voice-Driven Command Line Interface for Windows.
-Master's Thesis, [University Name]. 
+Earmyas-Measho, E. (2025). VoiceCLI: Voice-Driven Command Line Interface for Windows. 
+Bachelor's Thesis, Linnaeus University, Växjö, Sweden.
 https://github.com/Earmyas-Measho/termina-voice-support-for-windows.git
 ```
 
-## 🤝 Contributing
+## Contributing
 
 This dataset is provided under an open-source license. If you find any issues or have suggestions for improvements, please:
 
 1. Open an issue on the GitHub repository
-2. Provide detailed description of the problem
+2. Describe the problem clearly
 3. Include specific file references and line numbers
 4. Suggest potential solutions if possible
 
-## 📞 Contact
+## Contact
 
 For questions about this dataset or the VoiceCLI study:
 
 - **Repository**: https://github.com/Earmyas-Measho/termina-voice-support-for-windows.git
 - **Issues**: Use GitHub Issues for technical questions
-- **Research**: Contact the thesis author for academic inquiries
+- **Research**: Contact me for academic inquiries
 
 ---
 
-**Note**: This dataset has been mathematically verified to ensure 100% consistency across all files. All calculations have been triple-checked for accuracy and reproducibility.
+**Note**: This dataset has been mathematically verified to ensure consistency across all files. All calculations have been checked for accuracy and reproducibility.
