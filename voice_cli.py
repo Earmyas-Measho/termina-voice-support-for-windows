@@ -20,8 +20,85 @@ command_history = deque(maxlen=20)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Dangerous patterns
-DANGEROUS_PATTERNS = [r'\brm\b', r'\bdel\b', r'\berase\b', r'Remove-Item', r'\brd\b', r'\brmdir\b', r'\bformat\b', r'\bmkfs\b', r'fdisk', r'diskpart', r'sudo\b', r'runas\b', r'Invoke-Expression', r'\biex\b', r'curl\s+.*\|.*sh', r'wget\s+.*\|.*sh', r'Invoke-WebRequest\s+.*\|.*iex', r'iwr\s+.*\|.*iex', r':\(\)\s*\{.*\}\s*;\s*:', r'\bshutdown\b', r'\breboot\b', r'Stop-Computer', r'Restart-Computer']
+# Dangerous patterns - commands that can cause data loss, system damage, or security issues
+DANGEROUS_PATTERNS = [
+    # File/Directory Deletion (can permanently delete files)
+    r'\brm\b',                    # Remove files (Unix/Linux)
+    r'\bdel\b',                   # Delete files (Windows CMD)
+    r'\berase\b',                 # Erase files (Windows CMD)
+    r'Remove-Item',               # Remove files (PowerShell)
+    r'\brd\b',                    # Remove directory (Windows CMD)
+    r'\brmdir\b',                 # Remove directory (Windows CMD)
+    r'\brm\s+-rf\b',              # Remove recursively and force (very dangerous)
+    r'Remove-Item\s+-Recurse\s+-Force', # Remove recursively and force (PowerShell)
+    
+    # Disk/System Formatting (can wipe entire drives)
+    r'\bformat\b',                # Format disk (Windows)
+    r'\bmkfs\b',                  # Make file system (Unix/Linux)
+    r'fdisk',                     # Disk partitioning tool
+    r'diskpart',                  # Disk partitioning (Windows)
+    r'\bdd\b',                    # Disk dump (can overwrite entire drives)
+    
+    # Privilege Escalation (can gain admin access)
+    r'sudo\b',                    # Super user do (Unix/Linux)
+    r'runas\b',                   # Run as different user (Windows)
+    r'\bsu\b',                    # Switch user (Unix/Linux)
+    
+    # Code Injection/Execution (can run malicious code)
+    r'Invoke-Expression',         # Execute code (PowerShell)
+    r'\biex\b',                   # Invoke-Expression alias
+    r'curl\s+.*\|.*sh',          # Download and execute script
+    r'wget\s+.*\|.*sh',          # Download and execute script
+    r'Invoke-WebRequest\s+.*\|.*iex', # Download and execute (PowerShell)
+    r'iwr\s+.*\|.*iex',          # Invoke-WebRequest alias
+    r'powershell\s+-EncodedCommand', # Execute encoded PowerShell
+    r'cmd\s+/c\s+.*\|.*',        # Command execution with pipes
+    
+    # System Shutdown/Reboot (can interrupt work)
+    r'\bshutdown\b',             # Shutdown system
+    r'\breboot\b',               # Reboot system
+    r'Stop-Computer',            # Stop computer (PowerShell)
+    r'Restart-Computer',         # Restart computer (PowerShell)
+    r'\bhalt\b',                 # Halt system (Unix/Linux)
+    r'\bpoweroff\b',             # Power off system (Unix/Linux)
+    
+    # Network/Remote Access (can expose system)
+    r'\bssh\b',                  # Secure shell (remote access)
+    r'\btelnet\b',               # Telnet (insecure remote access)
+    r'\brdp\b',                  # Remote desktop
+    r'\bvnc\b',                  # Virtual network computing
+    r'net\s+user\s+.*\s+/add',   # Add user account
+    r'net\s+localgroup\s+.*\s+/add', # Add to local group
+    
+    # Registry Modification (can break Windows)
+    r'reg\s+add',                # Add registry entry
+    r'reg\s+delete',             # Delete registry entry
+    r'reg\s+import',             # Import registry file
+    r'Set-ItemProperty',         # Set registry property (PowerShell)
+    r'Remove-ItemProperty',      # Remove registry property (PowerShell)
+    
+    # Service/Process Control (can stop critical services)
+    r'net\s+stop',               # Stop Windows service
+    r'net\s+start',              # Start Windows service
+    r'Stop-Service',             # Stop service (PowerShell)
+    r'Start-Service',            # Start service (PowerShell)
+    r'taskkill',                 # Kill process
+    r'kill\b',                   # Kill process (Unix/Linux)
+    
+    # Fork Bomb (can crash system)
+    r':\(\)\s*\{.*\}\s*;\s*:',   # Fork bomb pattern
+    r'\.\s*\.\s*\.',             # Another fork bomb pattern
+    
+    # Password/Account Modification
+    r'net\s+user\s+.*\s+.*',     # Modify user account
+    r'passwd\b',                 # Change password (Unix/Linux)
+    r'Set-LocalUser',            # Set local user (PowerShell)
+    
+    # Firewall/Network Security
+    r'netsh\s+firewall',         # Windows firewall commands
+    r'iptables',                 # Linux firewall
+    r'ufw\b',                    # Ubuntu firewall
+]
 DANGEROUS_REGEX = [re.compile(p, re.IGNORECASE) for p in DANGEROUS_PATTERNS]
 
 def is_command_dangerous(command):
